@@ -78,6 +78,9 @@ public:
 	}
 };
 
+
+asdasd
+
 int main(int argc, char* argv[]) {
 	setbuf(stdout, 0);
 
