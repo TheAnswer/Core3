@@ -228,24 +228,32 @@ public:
 			return;
 		}*/
 
-
-		ManagedReference<SceneObject*> newParent = server->getZoneServer()->getObject(parent, true);
-
-		if (newParent == NULL)
-			return;
-
-		if (!newParent->isCellObject() || newParent->getParent() == NULL)
-			return;
-
-		ManagedReference<BuildingObject*> building = newParent->getParent().castTo<BuildingObject*>();
-
-		if (building == NULL)
-			return;
-
 		ManagedReference<SceneObject*> par = object->getParent();
 
 		if (par != NULL && par->isShipObject())
 			return;
+
+		ValidatedPosition pos;
+		pos.update(object);
+
+		ManagedReference<SceneObject*> newParent = server->getZoneServer()->getObject(parent, true);
+
+		if (newParent == NULL) {
+			bounceBack(object, pos);
+			return;
+		}
+
+		if (!newParent->isCellObject() || newParent->getParent() == NULL) {
+			bounceBack(object, pos);
+			return;
+		}
+
+		ManagedReference<BuildingObject*> building = newParent->getParent().castTo<BuildingObject*>();
+
+		if (building == NULL) {
+			bounceBack(object, pos);
+			return;
+		}
 
 		/*StringBuffer posMsg;
 		posMsg << "posX: " << positionX << " posZ: " << positionZ << " posY:" << positionY;
@@ -253,11 +261,10 @@ public:
 
 		ManagedReference<PlayerManager*> playerManager = server->getPlayerManager();
 
-		if (playerManager == NULL)
+		if (playerManager == NULL) {
+			bounceBack(object, pos);
 			return;
-
-		ValidatedPosition pos;
-		pos.update(object);
+		}
 
 		if (!ghost->isPrivileged()) {
 			SceneObject* inventory = object->getSlottedObject("inventory");
