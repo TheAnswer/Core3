@@ -43,18 +43,32 @@
 
 ForceChokeCommand = {
         name = "forcechoke",
-        
-   	damage = 750,
+
+   	damage = 900,
 	speed = 6.0,
 	forceCost = 400,
+	attackType = FORCEATTACK,
 
 	animationCRC = hashCode("force_choke_1_particle_level_1_medium"),
 
 	combatSpam = "forcechoke",
-	
+
 	poolsToDamage = RANDOM_ATTRIBUTE,
 
-	range = 32
+	range = 32,
+
+	dotEffects = {
+	  DotEffect( 
+		FORCECHOKE, 
+		{ "", "" },
+		0,
+		false,
+		100,
+		100,
+		500, 
+		35
+	  )
+	},
 }
 
 AddCommand(ForceChokeCommand)
