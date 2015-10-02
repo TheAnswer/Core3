@@ -97,8 +97,8 @@ class GCWManager extends ManagedService implements Logger {
 		rebelBases = 0;
 		rebelScore = 0;
 
-		Logger.setLoggingName("GCWManager");
-		Logger.info("GCWManager instantiated for " + zne.getZoneName(),true);
+		Logger.setLoggingName("GCWManager " + zne.getZoneName());
+		Logger.info("instantiated", true);
 		gcwBaseList.setNoDuplicateInsertPlan();
 		zone = zne;
 
@@ -345,6 +345,8 @@ class GCWManager extends ManagedService implements Logger {
 	private native boolean canUseTurret(TurretDataComponent turretData, TurretControlTerminalDataComponent controlData, CreatureObject creature);
 
 	public native boolean canPlaceMoreBases(CreatureObject creature);
+
+	public native boolean hasTooManyBasesNearby(int x, int y);
 
 	public int getImperialBaseCount(){
 		return imperialBases;

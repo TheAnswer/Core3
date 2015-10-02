@@ -650,7 +650,7 @@ int PlayerManagerImplementation::notifyDestruction(TangibleObject* destructor, T
 
 	PlayerObject* ghost = playerCreature->getPlayerObject();
 
-	ghost->updateIncapacitationCounter();
+	ghost->addIncapacitationTime();
 
 	DeltaVector<ManagedReference<SceneObject*> >* defenderList = destructor->getDefenderList();
 
@@ -661,7 +661,9 @@ int PlayerManagerImplementation::notifyDestruction(TangibleObject* destructor, T
 		destructor->removeDefender(destructedObject);
 	}
 
-	if ((!destructor->isKiller() || !isDefender) && ghost->getIncapacitationCounter() < 3) {
+	if ((destructor->isKiller() && isDefender) || ghost->getIncapacitationCounter() >= 3) {
+		killPlayer(destructor, playerCreature, 0);
+	} else {
 		playerCreature->setCurrentSpeed(0);
 		playerCreature->setPosture(CreaturePosture::INCAPACITATED, true);
 		playerCreature->updateLocomotion();
@@ -685,11 +687,6 @@ int PlayerManagerImplementation::notifyDestruction(TangibleObject* destructor, T
 		stringId.setTT(destructor->getObjectID());
 
 		playerCreature->sendSystemMessage(stringId);
-
-	} else {
-		if (destructor->isKiller() || !ghost->isFirstIncapacitationExpired()) {
-			killPlayer(destructor, playerCreature, 0);
-		}
 	}
 
 	return 0;
@@ -724,6 +721,11 @@ void PlayerManagerImplementation::killPlayer(TangibleObject* attacker, CreatureO
 	player->updateTimeOfDeath();
 	player->clearBuffs(true);
 
+	PlayerObject* ghost = player->getPlayerObject();
+
+	if (ghost != NULL)
+		ghost->resetIncapacitationTimes();
+
 	if (attacker->getFaction() != 0) {
 		if (attacker->isPlayerCreature() || attacker->isPet()) {
 			CreatureObject* attackerCreature = cast<CreatureObject*>(attacker);
@@ -747,9 +749,6 @@ void PlayerManagerImplementation::killPlayer(TangibleObject* attacker, CreatureO
 	CombatManager::instance()->freeDuelList(player, false);
 
 	player->notifyObjectKillObservers(attacker);
-
-	/*Reference<Task*> task = new PlayerIncapacitationRecoverTask(player, true);
-	task->schedule(10 * 1000);*/
 }
 
 void PlayerManagerImplementation::sendActivateCloneRequest(CreatureObject* player, int typeofdeath) {
@@ -1029,10 +1028,14 @@ void PlayerManagerImplementation::disseminateExperience(TangibleObject* destruct
 	int baseXp = 0;
 
 	Zone* zone = destructedObject->getZone();
-	if(zone != NULL){
+
+	if (zone != NULL) {
 		GCWManager* gcwMan = zone->getGCWManager();
-		gcwBonus += (gcwMan->getGCWXPBonus() / 100.0f);
-		winningFaction = gcwMan->getWinningFaction();
+
+		if (gcwMan != NULL) {
+			gcwBonus += (gcwMan->getGCWXPBonus() / 100.0f);
+			winningFaction = gcwMan->getWinningFaction();
+		}
 	}
 
 	if (!destructedObject->isCreatureObject() && spawnedCreatures != NULL) {

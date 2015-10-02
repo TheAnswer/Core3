@@ -23,7 +23,12 @@ DamageOverTime::DamageOverTime() {
 	addSerializableVariables();
 }
 
-DamageOverTime::DamageOverTime(CreatureObject* attacker, uint64 tp, uint8 attrib, uint32 str, uint32 dur, int secondaryStrength) {
+DamageOverTime::DamageOverTime(CreatureObject* attacker,
+							   uint64 tp,
+							   uint8 attrib,
+							   uint32 str,
+							   uint32 dur,
+							   int secondaryStrength) {
 
 	if (attacker != NULL)
 		setAttackerID(attacker->getObjectID());
@@ -112,7 +117,7 @@ uint32 DamageOverTime::applyDot(CreatureObject* victim) {
 		nextTick.addMiliTime(10000);
 		break;
 	case CreatureState::DISEASED:
-		power = doDiseaseTick(victim);
+		power = doDiseaseTick(victim, attacker);
 		nextTick.addMiliTime(40000);
 		break;
 	case CreatureState::ONFIRE:
@@ -227,17 +232,24 @@ uint32 DamageOverTime::doFireTick(CreatureObject* victim, CreatureObject* attack
 	uint8 attribute = this->attribute;
 	uint32 strength = this->strength;
 
-	EXECUTE_TASK_6(attackerRef, victimRef, attribute, damage, woundsToApply, strength, {
+	EXECUTE_TASK_6(attackerRef, victimRef, attribute, damage, woundsToApply, secondaryStrength, {
 			Locker locker(victimRef_p);
 
 			Locker crossLocker(attackerRef_p, victimRef_p);
 
-			if ((int)strength_p > 0) {
+			if (woundsToApply_p > 0)
+			{
+				// need to do damage to account for wounds first, or it will possibly get
+				// applied twice
+				if (attribute_p % 3 == 0)
+					victimRef_p->inflictDamage(attackerRef_p, attribute_p, woundsToApply_p, true);
+	
 				victimRef_p->addWounds(attribute_p, woundsToApply_p, true, false);
-				victimRef_p->addShockWounds((int)(woundsToApply_p * 0.075f));
 			}
 
-			victimRef_p->inflictDamage(attackerRef_p, attribute_p, damage_p, true);
+			victimRef_p->addShockWounds((int)(secondaryStrength_p * 0.075f));
+
+			victimRef_p->inflictDamage(attackerRef_p, attribute_p - attribute_p % 3, damage_p, true);
 			if (victimRef_p->hasAttackDelay())
 				victimRef_p->removeAttackDelay();
 
@@ -282,7 +294,7 @@ uint32 DamageOverTime::doPoisonTick(CreatureObject* victim, CreatureObject* atta
 	return damage;
 }
 
-uint32 DamageOverTime::doDiseaseTick(CreatureObject* victim) {
+uint32 DamageOverTime::doDiseaseTick(CreatureObject* victim, CreatureObject* attacker) {
 	// we need to allow dots to tick while incapped, but not do damage
 	if (victim->isIncapacitated())
 		return 0;
@@ -294,18 +306,26 @@ uint32 DamageOverTime::doDiseaseTick(CreatureObject* victim) {
 	int damage = (int)(strength * (1.f - absorptionMod / 100.f) * (1.f + victim->getShockWounds() / 100.0f));
 	uint8 attribute = this->attribute;
 	uint32 strength = this->strength;
+	Reference<CreatureObject*> attackerRef = attacker;
 	Reference<CreatureObject*> victimRef = victim;
 
-	EXECUTE_TASK_4(attribute, strength, victimRef, damage, {
+	EXECUTE_TASK_5(attackerRef, victimRef, attribute, strength, damage, {
 			Locker locker(victimRef_p);
+			Locker crossLocker(attackerRef_p, victimRef_p);
 
 			if ((int)damage_p > 0) {
+				// need to do damage to account for wounds first, or it will possibly get
+				// applied twice
+				if (attribute_p % 3 == 0)
+					victimRef_p->inflictDamage(attackerRef_p, attribute_p, damage_p, true);
+
 				victimRef_p->addWounds(attribute_p, damage_p, true, false);
-				if (victimRef_p->hasAttackDelay())
-					victimRef_p->removeAttackDelay();
 			}
 
 			victimRef_p->addShockWounds((int)(strength_p * 0.075f));
+
+			if (victimRef_p->hasAttackDelay())
+				victimRef_p->removeAttackDelay();
 
 			victimRef_p->playEffect("clienteffect/dot_diseased.cef","");
 	});
@@ -341,19 +361,17 @@ uint32 DamageOverTime::doForceChokeTick(CreatureObject* victim, CreatureObject* 
 
 float DamageOverTime::reduceTick(float reduction) {
 	//System::out << "reducing tick with reduction " << reduction << endl;
-	if (reduction < 0)
+	if (reduction < 0.f) // this ensures we can't increse a dot strength
 		return reduction;
 
-	float effReduction = (strength - (float)reduction);
-	float reductionLeft = (float)reduction - strength;
-
-	if (reductionLeft >= 0.0f) {
-		expires.updateToCurrentTime();
+	if (reduction >= strength) {
+		expireTick();
+		return reduction - strength;
 	} else {
 		//System::out << "strength before dotRed " << strength << endl;
-		strength = effReduction;
+		strength -= reduction;
 		//System::out << "strength after dotRed " << strength << endl;
 	}
 
-	return reductionLeft;
+	return 0.f;
 }
