@@ -9,7 +9,7 @@
 #include "server/zone/Zone.h"
 #include "server/zone/managers/creature/CreatureManager.h"
 #include "server/zone/objects/creature/CreatureObject.h"
-#include "server/zone/objects/creature/AiAgent.h"
+#include "server/zone/objects/creature/ai/AiAgent.h"
 #include "server/zone/objects/creature/junkdealer/JunkdealerCreature.h"
 #include "server/conf/ConfigManager.h"
 #include "server/zone/objects/area/areashapes/CircularAreaShape.h"
@@ -30,6 +30,8 @@ void SpawnAreaMap::loadMap(Zone* z) {
 		LuaObject obj = lua->getGlobalObject(planetName + "_regions");
 
 		if (obj.isValidTable()) {
+			info("loading spawn areas...", true);
+
 			lua_State* s = obj.getLuaState();
 
 			for (int i = 1; i <= obj.getTableSize(); ++i) {

@@ -18,6 +18,18 @@ using namespace server::zone;
 namespace server {
  namespace zone {
   namespace objects {
+   namespace scene {
+	   class SceneObject;
+   }
+  }
+ }
+}
+
+using namespace server::zone::objects::scene;
+
+namespace server {
+ namespace zone {
+  namespace objects {
    namespace group {
 	   class GroupObject;
    }
@@ -39,6 +51,20 @@ namespace server {
 }
 
 using namespace server::zone::objects::creature;
+
+namespace server {
+ namespace zone {
+  namespace objects {
+   namespace creature {
+    namespace ai {
+	    class AiAgent;
+    }
+   }
+  }
+ }
+}
+
+using namespace server::zone::objects::creature::ai;
 
 class GroupManager : public Singleton<GroupManager>, public Object {
 
@@ -67,6 +93,10 @@ public:
 	void changeMasterLooter(GroupObject* group, CreatureObject* newLooter, bool enableRule);
 	void sendMasterLooterList(GroupObject* group, CreatureObject* leader);
 	void notifyMasterLooter(GroupObject* group);
+
+	void createLottery(GroupObject* group, AiAgent* corpse);
+	void doRandomLoot(GroupObject* group, AiAgent* corpse);
+	void transferLoot(GroupObject* group, CreatureObject* winner, SceneObject* object, bool stillGrouped);
 
 	void disbandGroup(ManagedReference<GroupObject*> group, CreatureObject* player);
 

@@ -142,17 +142,23 @@ function TheaterManagerScreenPlay:completeCurrentStep(pPlayer)
 end
 
 -- Teaches the player the skills for completing a series
-function TheaterManagerScreenPlay:teachSkills(pPlayer)
+function TheaterManagerScreenPlay:giveSkillScroll(pPlayer)
 	local curSeries = self:getCurrentSeries(pPlayer)
+	local templatePath
 
-	ObjectManager.withCreaturePlayerObject(pPlayer, function(player, playerObject)
-		if (curSeries == 1) then
-			playerObject:addAbility("startDance+theatrical")
-			playerObject:addAbility("startDance+theatrical2")
-		elseif (curSeries == 2) then
-			playerObject:addAbility("startMusic+western")
-		end
-	end)
+	if (curSeries == 1) then
+		templatePath = "object/tangible/item/quest/crowd_pleaser/dance_reward.iff"
+	elseif (curSeries == 2) then
+		templatePath = "object/tangible/item/quest/crowd_pleaser/music_reward.iff"
+	end
+
+	local pInventory = SceneObject(pPlayer):getSlottedObject("inventory")
+
+	local pScroll = giveItem(pInventory, templatePath, -1, true)
+
+	if (pScroll == nil) then
+		CreatureObject(pPlayer):sendSystemMessage("Error creating reward scroll. Please file a bug report.")
+	end
 end
 
 -- Completes the player's current series
@@ -229,11 +235,7 @@ function TheaterManagerScreenPlay:spawnControl(pPlayer)
 	local cellID = SceneObject(pCell):getObjectID()
 	local planetName = SceneObject(pTheater):getZoneName()
 
-	local areaX = SceneObject(pCell):getWorldPositionX() + 0
-	local areaY = SceneObject(pCell):getWorldPositionY() + 51
-	local areaZ = getTerrainHeight(pCell, areaX, areaY) + 2
-
-	local pControl = spawnSceneObject(planetName, "object/tangible/theme_park/invisible_object.iff", areaX, areaZ, areaY, cellID, 0)
+	local pControl = spawnSceneObject(planetName, "object/tangible/theme_park/invisible_object.iff", 0.58, 2.13, 58.7, cellID, 0)
 
 	if (pControl == nil) then
 		return nil
@@ -312,11 +314,7 @@ function TheaterManagerScreenPlay:startAudition(pPlayer)
 
 	self:spawnJudges(pTheater)
 
-	local areaX = SceneObject(pCell):getWorldPositionX() + 0
-	local areaY = SceneObject(pCell):getWorldPositionY() + 51
-	local areaZ = getTerrainHeight(pCell, areaX, areaY) + 2
-
-	local pAuditionArea = spawnActiveArea(SceneObject(pTheater):getZoneName(), "object/active_area.iff", areaX, areaZ, areaY, 7, 0)
+	local pAuditionArea = spawnActiveArea(SceneObject(pTheater):getZoneName(), "object/active_area.iff", SceneObject(pControl):getWorldPositionX(), SceneObject(pControl):getWorldPositionZ(), SceneObject(pControl):getWorldPositionY(), 10, SceneObject(pCell):getObjectID())
 
 	if (pAuditionArea == nil) then
 		printf("Error in TheaterManagerScreenPlay:startAudition, unable to create activeArea.\n")
@@ -447,7 +445,7 @@ function TheaterManagerScreenPlay:beginAudition(pControl)
 	end
 
 	if (readData(playerID .. ":theater_manager:inAuditionArea") == 0) then
-		self:failAudition(pControl, "fail_left_audition_area")
+		self:failAudition(pControl, "fail_not_in_audition_area")
 	else
 		CreatureObject(pPlayer):sendSystemMessage("@quest/crowd_pleaser/system_messages:audition_begin")
 		writeData(playerID .. ":theater_manager:auditionPhase", 1)
@@ -1004,11 +1002,7 @@ function TheaterManagerScreenPlay:beginPerformance(pPlayer)
 
 	self:determineAudienceInterests(pPlayer)
 
-	local areaX = SceneObject(pCell):getWorldPositionX() + 0
-	local areaY = SceneObject(pCell):getWorldPositionY() + 51
-	local areaZ = getTerrainHeight(pCell, areaX, areaY) + 2
-
-	local pPerformanceArea = spawnActiveArea(SceneObject(pCell):getZoneName(), "object/active_area.iff", areaX, areaZ, areaY, 10, 0)
+	local pPerformanceArea = spawnActiveArea(SceneObject(pCell):getZoneName(), "object/active_area.iff", SceneObject(pControl):getWorldPositionX(), SceneObject(pControl):getWorldPositionZ(), SceneObject(pControl):getWorldPositionY(), 10, SceneObject(pCell):getObjectID())
 
 	if (pPerformanceArea == nil) then
 		printf("Error in TheaterManagerScreenPlay:beginPerformance, unable to create activeArea.\n")

@@ -19,7 +19,7 @@
 #include "server/zone/packets/tangible/UpdatePVPStatusMessage.h"
 #include "server/zone/objects/area/ActiveArea.h"
 #include "server/zone/objects/creature/CreatureObject.h"
-#include "server/zone/objects/creature/AiAgent.h"
+#include "server/zone/objects/creature/ai/AiAgent.h"
 #include "server/zone/managers/crafting/CraftingManager.h"
 #include "server/zone/objects/tangible/component/Component.h"
 #include "server/zone/objects/factorycrate/FactoryCrate.h"
@@ -942,6 +942,13 @@ void TangibleObjectImplementation::addActiveArea(ActiveArea* area) {
 		area->deploy();
 
 	activeAreas.put(area);
+}
+
+void TangibleObjectImplementation::sendTo(SceneObject* player, bool doClose) {
+	if (isInvisible() && player != asTangibleObject())
+		return;
+
+	SceneObjectImplementation::sendTo(player, doClose);
 }
 
 bool TangibleObjectImplementation::isCityStreetLamp(){

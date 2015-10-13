@@ -23,14 +23,14 @@
 #include "server/zone/managers/loot/LootManager.h"
 #include "server/zone/managers/name/NameManager.h"
 #include "server/zone/managers/crafting/labratories/DroidMechanics.h"
-#include "server/zone/objects/creature/Creature.h"
+#include "server/zone/objects/creature/ai/Creature.h"
 #include "server/zone/objects/creature/CreatureObject.h"
 #include "server/zone/objects/creature/events/MilkCreatureTask.h"
 #include "server/zone/objects/creature/events/TameCreatureTask.h"
 #include "server/zone/objects/creature/events/SampleDnaTask.h"
 #include "server/zone/objects/group/GroupObject.h"
 #include "server/zone/objects/player/PlayerObject.h"
-#include "server/zone/objects/creature/AiAgent.h"
+#include "server/zone/objects/creature/ai/AiAgent.h"
 #include "server/zone/objects/creature/events/DespawnCreatureTask.h"
 #include "server/zone/objects/region/Region.h"
 #include "server/db/ServerDatabase.h"
@@ -581,7 +581,6 @@ bool CreatureManagerImplementation::createCreatureChildrenObjects(CreatureObject
 }
 
 void CreatureManagerImplementation::loadSpawnAreas() {
-	info("loading spawn areas...", true);
 	spawnAreaMap.loadMap(zone);
 }
 

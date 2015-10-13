@@ -7,17 +7,17 @@ villageMobileSpawns = {
 		{ "paemos", 5289, 78, -4149, 240, "", "" },
 		{ "noldan", 5243, 78, -4224, 0, "", "" },
 		{ "quharek", 5373.7, 78.5, -4181.4, -69, "", "" },
-		{ "captain_sarguillo", 5313.9, 78.5, -4161.5, -72, "", "" },
 		{ "fs_villager_farmer", 5291.31, 78.5, -4037.8, 164, "", "" },
 	},
 
 	[1] = {
+		{ "captain_sarguillo", 5313.9, 78.5, -4161.5, -72, "", "villageSarguilloPhase1ConvoTemplate" },
 		{ "rohak_village_elder", 5306, 78, -4145, 0, "", "villageElderPhase1ConvoTemplate" },
 		{ "whip", 5283.66, 78.5, -4226.31, -143, "", "" },
-		{ "sivarra_mechaux", 5391.5, 78.5, -4075.7, -110, "", "" },
-		{ "fs_surgical_droid_21b", 5392.1, 78.5, -4072.5, 101, "", "" },
-		{ "fs_surgical_droid_21b", 5396.4, 78.5, -4074.7, -104, "", "" },
-		{ "fs_surgical_droid_21b", 5158.11, 78.5, -4116.02, -30, "", "" },
+		{ "sivarra_mechaux", 5391.5, 78.5, -4075.7, -110, "", "villageSivarraPhase1ConvoTemplate" },
+		{ "fs_surgical_droid_21b", 5392.1, 78.5, -4072.5, 101, "initMedDroid", "villageMedicalDroidPhase1ConvoTemplate" },
+		{ "fs_surgical_droid_21b", 5396.4, 78.5, -4074.7, -104, "initMedDroid", "villageMedicalDroidPhase1ConvoTemplate" },
+		{ "fs_surgical_droid_21b", 5158.11, 78.5, -4116.02, -30, "initMedDroid", "villageMedicalDroidPhase1ConvoTemplate" },
 
 		{ "fs_villager_generic", 5388.3, 78.5, -4074.9, 131, "initWoundedVillager", "" },
 		{ "fs_villager_generic", 5394.1, 78.5, -4073.2, -130, "initWoundedVillager", "" },

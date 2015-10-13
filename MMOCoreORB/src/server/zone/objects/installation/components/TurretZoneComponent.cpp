@@ -26,65 +26,45 @@
 #include "server/zone/managers/objectcontroller/ObjectController.h"
 #include "TurretFireTask.h"
 
-void TurretZoneComponent::notifyPositionUpdate(SceneObject* sceneObject, QuadTreeEntry* entry){
+void TurretZoneComponent::notifyPositionUpdate(SceneObject* sceneObject, QuadTreeEntry* entry) {
 
 	ManagedReference<SceneObject*> target = cast<SceneObject*>(entry);
 
-	if(!sceneObject->isTangibleObject() || !sceneObject->isTurret() || target == NULL || !target->isCreatureObject() || target->isAiAgent()){
+	if (!sceneObject->isTangibleObject() || !sceneObject->isTurret() || target == NULL || !target->isCreatureObject()) {
 		return;
 	}
 
 	ManagedReference<TangibleObject*> tano = cast<TangibleObject*>(sceneObject);
-
 	DataObjectComponentReference* data = sceneObject->getDataObjectComponent();
 
-	if(data == NULL || tano == NULL)
+	if (data == NULL || tano == NULL) {
 		return;
+	}
 
 	TurretDataComponent* turretData = cast<TurretDataComponent*>(data->get());
 
-	if(turretData == NULL || !turretData->canAutoFire()){
+	if (turretData == NULL) {
 		return;
 	}
 
-	Reference<WeaponObject*> weapon = sceneObject->getSlottedObject("hold_r").castTo<WeaponObject*>();
+	if (sceneObject->isInRange(target, turretData->getMaxRange())) {
+		ManagedReference<CreatureObject*> targetCreo = cast<CreatureObject*>(entry);
 
-	if(weapon == NULL)
-		return;
-
-	if(target->isPlayerCreature() && sceneObject->isInRange(target,weapon->getMaxRange(false))){
-		ManagedReference<CreatureObject*> player = cast<CreatureObject*>(entry);
-
-		if(player == NULL || !player->isAttackableBy(tano))
+		if (targetCreo == NULL || !targetCreo->isAttackableBy(tano))
 			return;
 
-		Reference<TurretFireTask*> task = new TurretFireTask(tano, player,false);
-		task->execute();
+		turretData->addTarget(targetCreo);
 	}
-
 }
 
-void TurretZoneComponent::notifyInsertToZone(SceneObject* sceneObject, Zone* zne){
-	if(zne == NULL)
+void TurretZoneComponent::notifyInsertToZone(SceneObject* sceneObject, Zone* zne) {
+	if (zne == NULL)
 		return;
 
 	ManagedReference<TurretObserver*> observer = new TurretObserver();
 	ManagedReference<InstallationObject*> installation = cast<InstallationObject*>(sceneObject);
-	if(installation == NULL)
+	if (installation == NULL)
 		return;
 
 	installation->registerObserver(ObserverEventType::OBJECTDESTRUCTION,observer);
-
-	// TODO: remove.  this is to get the pvpstatus bitmask correct for existing turrets
-	uint64 oid = installation->getOwnerObjectID();
-
-	if(oid != 0) {
-		ManagedReference<SceneObject*> sceno = zne->getZoneServer()->getObject(oid);
-		if(sceno != NULL && sceno->isGCWBase()) {
-			ManagedReference<BuildingObject*> building = cast<BuildingObject*>(sceno.get());
-			if(building != NULL ){
-				installation->setPvpStatusBitmask(building->getPvpStatusBitmask() | 1);
-			}
-		}
-	}
 }

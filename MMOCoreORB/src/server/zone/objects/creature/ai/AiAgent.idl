@@ -1,0 +1,1382 @@
+/*
+				Copyright <SWGEmu>
+		See file COPYING for copying conditions.*/
+
+package server.zone.objects.creature.ai;
+
+import engine.lua.LuaObject;
+import system.util.Vector;
+import system.lang.Time;
+import server.zone.Zone;
+import system.util.SortedVector;
+import server.zone.objects.creature.CreatureObject;
+import server.zone.objects.creature.ai.events.AiThinkEvent;
+import server.zone.objects.creature.ai.events.AiMoveEvent;
+import server.zone.objects.creature.ai.events.AiWaitEvent;
+import server.zone.objects.creature.ai.events.AiAwarenessEvent;
+import system.lang.ref.Reference;
+import server.zone.packets.scene.AttributeListMessage;
+import server.zone.objects.tangible.weapon.WeaponObject;
+include server.zone.objects.creature.ai.PatrolPointsVector;
+include server.zone.objects.creature.ai.PatrolPoint;
+include server.zone.objects.scene.WorldCoordinates;
+import engine.core.ManagedObject;
+import server.zone.objects.tangible.TangibleObject;
+import server.zone.objects.tangible.weapon.WeaponObject;
+import server.zone.templates.SharedObjectTemplate;
+import server.zone.templates.mobile.CreatureTemplate;
+import server.zone.objects.creature.events.DespawnCreatureOnPlayerDissappear;
+include server.zone.objects.creature.ai.variables.CreatureAttackMap;
+import engine.util.u3d.Coordinate;
+import server.zone.objects.creature.commands.QueueCommand;
+import engine.util.Observable;
+import server.zone.objects.player.PlayerObject;
+include server.zone.objects.player.FactionStatus;
+include system.thread.Mutex;
+include server.zone.managers.loot.lootgroup.LootGroupCollection;
+include server.zone.objects.creature.ai.variables.CreatureTemplateReference;
+include system.thread.ReadWriteLock;
+include server.zone.objects.creature.ai.variables.CurrentFoundPath;
+import server.zone.objects.creature.ai.bt.Behavior;
+import server.zone.objects.creature.ai.bt.CompositeBehavior;
+include server.zone.templates.AiTemplate;
+import server.zone.objects.intangible.ControlDevice;
+import server.zone.objects.creature.ai.events.AiTrackingTask;
+import system.thread.atomic.AtomicInteger;
+include server.zone.objects.tangible.deed.pet.PetDeed;
+
+@mock
+class AiAgent extends CreatureObject {
+	protected transient AiThinkEvent thinkEvent;
+
+	protected transient AiMoveEvent moveEvent;
+
+	protected transient AiWaitEvent waitEvent;
+
+	protected transient AiAwarenessEvent awarenessEvent;
+
+	@dereferenced
+	protected transient ReadWriteLock despawnMutex;
+
+	@dereferenced
+	protected Vector<string> skillCommands;
+
+	@dereferenced
+	protected PatrolPointsVector patrolPoints;
+
+	@dereferenced
+	protected PatrolPointsVector savedPatrolPoints;
+
+	@dereferenced
+	protected PatrolPoint homeLocation;
+
+	@dereferenced
+	protected PatrolPoint nextStepPosition;
+
+	protected transient CurrentFoundPath currentFoundPath;
+	protected transient SceneObject targetCellObject;
+
+	protected WeaponObject readyWeapon;
+
+	protected CreatureAttackMap attackMap;
+	protected CreatureAttackMap defaultAttackMap;
+
+	@dereferenced 
+	protected transient Vector<unsigned long> camouflagedObjects;
+
+	@dereferenced
+	protected CreatureTemplateReference npcTemplate;
+
+	protected unsigned int convoTemplateCRC;
+
+	@weakReference
+	protected SceneObject homeObject;
+
+	//DEBUG
+	protected boolean showNextMovementPosition;
+	@dereferenced
+	protected Vector<SceneObject> movementMarkers;
+
+	protected boolean despawnOnNoPlayerInRange;
+
+	@weakReference
+	private SceneObject followObject;
+	@weakReference
+	private SceneObject followStore;
+	private unsigned int followState;
+	@dereferenced
+	private transient Mutex targetMutex;
+	@dereferenced
+	private transient Mutex awarenessEventMutex;
+	@dereferenced
+	private transient Mutex movementEventMutex;
+	private int nextMovementInterval;
+
+	@dereferenced
+	protected transient Time lastDamageReceived;
+
+	protected int reactionRank;
+
+	protected float respawnTimer;
+	protected int respawnCounter;
+	protected boolean randomRespawn;
+
+	@dereferenced
+	protected transient AtomicInteger numberOfPlayersInRange;
+
+	protected boolean loadedOutfit;
+
+	protected transient DespawnCreatureOnPlayerDissappear despawnEvent;
+
+	protected PetDeed petDeed;
+
+	// AI bit
+	protected unsigned int currentBehaviorID;
+	@dereferenced
+	protected VectorMap<unsigned int, Behavior> behaviors;
+
+	@dereferenced
+	protected transient string templateName;
+	protected unsigned int creatureBitmask;
+
+	protected int waitTime;
+	protected boolean waiting;
+	protected float fleeRange;
+
+	@dereferenced
+	protected transient Time alertedTime;
+
+	protected transient AiTrackingTask trackingTask;
+
+	protected unsigned int nextActionCRC;
+	protected string nextActionArgs;
+
+	public static final int UPDATEMOVEMENTINTERVAL = 500; // msec
+
+	public static final int DEFAULTAGGRORADIUS = 24;
+
+	public static final int OBLIVIOUS = 0;
+	public static final int WATCHING = 1;
+	public static final int STALKING = 2;
+	public static final int FOLLOWING = 3;
+	public static final int PATROLLING = 4;
+	public static final int FLEEING = 5;
+	public static final int LEASHING = 6;
+
+
+	public AiAgent() {
+		followState = OBLIVIOUS;
+
+		respawnTimer = 0;
+		respawnCounter = 0;
+		randomRespawn = false;
+
+		nextMovementInterval = UPDATEMOVEMENTINTERVAL;
+
+		reactionRank = 0;
+
+		convoTemplateCRC = 0;
+
+		showNextMovementPosition = true;
+
+		despawnOnNoPlayerInRange = false;
+
+		loadedOutfit = false;
+
+		Logger.setLoggingName("AiAgent");
+		Logger.setLogging(false);
+		Logger.setGlobalLogging(true);
+
+		behaviors.setNoDuplicateInsertPlan();
+		waitTime = 0;
+		waiting = false;
+		fleeRange = 192;
+	}
+
+	/**
+	 * Initializes the transient members of SceneObject, must call the inherited object method first.
+	 * @pre {transient members are not initialized }
+	 * @post { transient members are initialized }
+	 */
+	public native void initializeTransientMembers();
+
+	public void finalize() {
+		//Logger.info("deleting from ram", true);
+		clearBehaviorList();
+	}
+
+	/**
+	 * Schedules the next recovery event
+	 * @pre { at least this is locked }
+	 * @post { at least this is locked }
+	 */
+	@preLocked
+	public abstract native void activateRecovery();
+
+	/**
+	 * Schedules the next movement event
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 */
+	@preLocked
+	public abstract native void activateMovementEvent();
+
+	/**
+	 * Schedules the next wait event
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 */
+	@preLocked
+	public abstract native void activateWaitEvent();
+
+	/**
+	 * Schedules an event to check awareness
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 */
+	@preLocked
+	public native void activateAwarenessEvent(unsigned long delay = 1000);
+
+	/**
+	 * Executes an AI interrupt in a separate thread (to shed locks)
+	 * @pre { }
+	 * @post { }
+	 */
+	public native void activateInterrupt(SceneObject source, long msg);
+
+	/**
+	 * Schedules the loading
+	 * @pre { }
+	 * @post { }
+	 */
+	public native void activateLoad(final string temp);
+
+	/**
+	 * Does a recovery tick
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 * @param latency The amount of time since the last recovery event
+	 */
+	@preLocked
+	public native void doRecovery(int latency);
+
+	/**
+	 * Does the main AI update tick
+	 * @pre { this object is locked }
+	 * @post { this object is locked, this AI will have performed one update tick }
+	 */
+	@preLocked
+	public native void doMovement();
+
+	@preLocked
+	public native void setLevel(int lvl, boolean randomHam = true);
+
+	/**
+	 * Sends the CREO baseline messages of this object to the specified player
+	 * @pre { this object is locked }
+	 * @post { this object is locked, player received the baseline messages }
+	 * @param player SceneObject that will receive the baselines 
+	 */
+	@dirty
+	public native void sendBaselinesTo(SceneObject player);
+
+	@dirty
+	public native int calculateAttackMinDamage(int level);
+
+	@dirty
+	public native int calculateAttackMaxDamage(int level);
+
+	@dirty
+	public native float calculateAttackSpeed(int level);
+
+	@preLocked
+	public native SceneObject getTargetFromMap();
+
+	@preLocked
+	public native SceneObject getTargetFromDefenders();
+
+	@preLocked
+	public native SceneObject getTargetFromTargetsDefenders();
+
+	@preLocked
+	public native boolean validateTarget();
+
+	@preLocked
+	public native boolean validateTarget(SceneObject target);
+
+	@dirty
+	public abstract native boolean isCamouflaged(CreatureObject target) {
+		return isAggressiveTo(target) && (isScentMasked(target) || isConcealed(target));
+	}
+
+	@dirty
+	public native boolean isScentMasked(CreatureObject target);
+
+	@dirty
+	public native boolean isConcealed(CreatureObject target);
+
+	@preLocked
+	public native boolean findNextPosition(float maxDistance, boolean walk = false);
+
+	@local
+	public native float getWorldZ(@dereferenced final Vector3 position);
+
+	/**
+	 * Does the AI awareness update tick
+	 * @pre { this is locked }
+	 * @post { this is locked, this AI will have scheduled one awareness check }
+	 */
+	@local
+	@preLocked
+	public native void doAwarenessCheck();
+	
+	@local
+	public native boolean runAwarenessLogicCheck(SceneObject pObject);
+	
+	@local
+	public native int checkForReactionChat(SceneObject pObject);
+
+	/**
+	 * Handles the radial selection sent by the client, must be overriden by inherited objects
+	 * @pre { this object is locked, player is locked }
+	 * @post { this object is locked, player is locked }
+	 * @param player CreatureObject that selected the option
+	 * @param selectedID selected menu id
+	 * @returns 0 if successfull
+	 */
+	@preLocked
+	@arg1preLocked
+	public native int handleObjectMenuSelect(CreatureObject player, byte selectedID);
+
+	@preLocked
+	public native void checkNewAngle();
+
+	@dirty
+	public native void fillAttributeList(AttributeListMessage msg, CreatureObject object);
+
+	public native void setNextPosition(float x, float z, float y, SceneObject cell = null);
+
+	public native void setNextStepPosition(float x, float z, float y, SceneObject cell = null);
+
+	@dirty
+	public native void notifyPositionUpdate(QuadTreeEntry entry);
+
+	@local
+	@preLocked
+	public native void updateCurrentPosition(PatrolPoint point);
+
+	@local
+	@dirty
+	@preLocked
+	public native void broadcastNextPositionUpdate(PatrolPoint point);
+
+	public void clearPatrolPoints() {
+		synchronized (targetMutex) {
+			if (getFollowState() == PATROLLING) {
+				for (int i = 0; i < patrolPoints.size(); i++) {
+					savedPatrolPoints.add(patrolPoints.get(i));
+				}
+			}
+
+			patrolPoints.removeAll();
+		}
+	}
+
+	public void clearSavedPatrolPoints() {
+		synchronized (targetMutex) {		
+			savedPatrolPoints.removeAll();
+		}
+	}
+
+	@local
+	public native void setPatrolPoints(@dereferenced PatrolPointsVector pVector);
+
+	@local
+	@dereferenced
+	public PatrolPoint getNextPosition() {
+		synchronized (targetMutex) {
+			return patrolPoints.get(0);
+		}
+	}
+
+	@local
+	public int getPatrolPointSize() {
+		synchronized (targetMutex) {
+			return patrolPoints.size();
+		}
+	}
+
+	@local
+	@dirty
+	public native void notifyInsert(QuadTreeEntry entry);
+
+	@local
+	@dirty
+	public native void notifyDissapear(QuadTreeEntry entry);
+
+	/**
+	 * Reads and sets the template data from a SharedTangibleObjectTemplate LuaObject
+	 * @pre { templateData is a valid pointer }
+	 * @post { TangibleObject members are initialized }
+	 * @param templateData templateData points to the SharedTangibleObjectTemplate LuaObject that is used to initialize the TangibleObject members
+	 */
+	@local
+	public native void loadTemplateData(SharedObjectTemplate templateData);
+
+	@local
+	public native void loadTemplateData(CreatureTemplate templateData);
+
+	@local
+	public native void setupAttackMaps();
+
+	/**
+	 * Inflicts damage into the object
+	 * @pre { this object is locked }
+	 * @post { this object is locked }
+	 * @return unused for now
+	 */
+	@preLocked
+	@arg1preLocked
+	public native int inflictDamage(TangibleObject attacker, int damageType, float damage, boolean destroy, boolean notifyClient = true);
+	
+	@preLocked
+	@arg1preLocked
+	public native int inflictDamage(TangibleObject attacker, int damageType, float damage, boolean destroy, final string xp, boolean notifyClient = true);
+
+	@preLocked
+	public native int addDotState(CreatureObject attacker, unsigned long dotType, unsigned long objectID, unsigned int strength, byte type, unsigned int duration, float potency, unsigned int defense, int secondaryStrength = 0) {
+		activateRecovery();
+		return super.addDotState(attacker, dotType, objectID, strength, type, duration, potency, defense, secondaryStrength);
+	}
+
+	/**
+	 * sends the conversation notification 
+	 * @pre {this locked, player locked }
+	 * @post { this locked, player locked }
+	 * @return whether the conversation was started or not
+	 */
+	@dirty
+	public native boolean sendConversationStartTo(SceneObject player);
+
+	/**
+	 * sends the default conversation list
+	 * @pre {this locked, player locked }
+	 * @post {this locked, player locked }
+	 */
+	@dirty
+	public native void sendDefaultConversationTo(SceneObject player);
+
+	/**
+	 * sends the conversation list 
+	 * @pre {this locked, player locked }
+	 * @post { this locked, player locked }
+	 */
+	public native void selectConversationOption(int option, SceneObject obj);
+
+	/**
+	 * Is called when this object is destroyed
+	 * @pre { this, attacker locked }
+	 * @post { this, attacker locked }
+	 */
+	@preLocked
+	@arg1preLocked
+	public native int notifyObjectDestructionObservers(TangibleObject attacker, int condition);
+
+	/**
+	 * Is called when an object is talked to
+	 * @pre { this, converser locked }
+	 * @post {this, converser locked }
+	 */
+	@preLocked
+	@arg1preLocked
+	public native int notifyConverseObservers(CreatureObject converser);
+
+	public native int notifyAttack(Observable observable);
+	public native int notifyCallForHelp(Observable observable, ManagedObject arg1);
+
+	@preLocked
+	public void destroyObjectFromWorld(boolean sendSelfDestroy) {
+		super.destroyObjectFromWorld(sendSelfDestroy);
+
+		if (moveEvent != null) {
+			moveEvent.clearCreatureObject();
+			moveEvent = null;
+		}
+	}
+
+	@preLocked
+	public void destroyObjectFromDatabase(boolean destroyContainedObjects = false) {
+		if (petDeed != null) {
+			petDeed.destroyObjectFromDatabase(true);
+		}
+
+		super.destroyObjectFromDatabase(destroyContainedObjects);
+	}
+
+	@preLocked
+	public native void activatePostureRecovery();
+
+	@preLocked
+	public abstract native void activateHAMRegeneration(int latency);
+
+	@preLocked
+	public native void queueDizzyFallEvent();
+
+	/**
+	 * Cleares the combat state
+	 * @pre { this object is locked }
+	 * @post { this object is locked, this object is not in a combat state }
+	 * @param clearDefenders if true the defender vector willl be emptied
+	 */
+	@preLocked
+	public native void clearCombatState(boolean clearDefenders = true);
+
+	/**
+	 * Sets the active defender
+	 * @pre { this object is locked }
+	 * @post { this object is locked, defender is active }
+	 * @param defender SceneObject to set as the active defender
+	 */
+	@preLocked
+	public native void setDefender(SceneObject defender);
+
+	/**
+	 * Adds a SceneObject to the defender vector
+	 * @pre { this object is locked }
+	 * @post { this object is locked, defender is in the defender vector }
+	 * @param defender SceneObject to add to the defender vector
+	 */
+	@preLocked
+	public native void addDefender(SceneObject defender);
+
+	/**
+	 * Removes the specified defender from the defender vector
+	 * @pre { this object is locked }
+	 * @post { this object is locked, defender is not in the defender vector }
+	 * @param defender SceneObject to remove from the defender vector
+	 */
+	@preLocked
+	public native void removeDefender(SceneObject defender);
+
+	@preLocked
+	public native void setDespawnOnNoPlayerInRange(boolean val);
+
+	/**
+	 * Gets called when the creature was despawned
+	 */
+	@preLocked
+	public abstract native void notifyDespawn(Zone zone);
+
+	public abstract void scheduleDespawn() {
+		//Despawn in 5 minutes.
+		scheduleDespawn(300);
+	}
+
+	/**
+	 * Schedules despawn of the AiAgent.
+	 * @param timeToDespawn the time to despawn the AiAgent in seconds.
+	 */
+	@preLocked
+	public abstract native void scheduleDespawn(int timeToDespawn); 
+
+	/**
+	 * Respawns creature to specified zone with home location position
+	 */
+	@preLocked
+	public native void respawn(Zone zone, int level);
+
+	@local
+	public void addPatrolPoint(@dereferenced PatrolPoint point) {
+		synchronized (targetMutex) {
+			patrolPoints.add(point);
+		}
+	}
+
+	@preLocked
+	public void setHomeLocation(float x, float z, float y, SceneObject cell = null) {
+		homeLocation.setPosition(x, z, y);
+		homeLocation.setCell(cell);
+		homeLocation.setReached(true);
+	}
+
+	@preLocked
+	public void setRespawnTimer(float resp) {
+		respawnTimer = resp;
+	}
+
+	@preLocked
+	public void setRandomRespawn(boolean resp) {
+		randomRespawn = resp;
+	}
+
+	@preLocked
+	public void resetRespawnCounter() {
+		respawnCounter = 0;
+	}
+
+	/**
+	 * Evaluates if this can be attacket by object
+	 * @pre { this object is locked }
+	 * @post { this object is locked }
+	 * @return returns true if object can attack this 
+	 */
+	@dirty
+	public native boolean isAttackableBy(CreatureObject object);
+	@dirty
+	public native boolean isAttackableBy(TangibleObject object);
+
+	/**
+	 * Evaluates if this creature is aggresive to the object
+	 * @pre { }
+	 * @post { }
+	 * @return returns true if its aggressive
+	 */
+	@dirty
+	public native boolean isAggressiveTo(CreatureObject object);
+
+	public void setOblivious() {
+		synchronized (targetMutex) {
+			setFollowState(OBLIVIOUS);
+			setTargetObject(null);
+			//activateMovementEvent();
+		}
+	}
+
+	public void setWatchObject(SceneObject obj) {
+		synchronized (targetMutex) {
+			if (this.isRetreating())
+				return;
+
+			setFollowState(WATCHING);
+
+			setTargetObject(obj);
+			//activateMovementEvent();
+		}
+	}
+
+	public void setStalkObject(SceneObject obj) {
+		synchronized (targetMutex) {
+			if (this.isRetreating())
+				return;
+
+			setFollowState(STALKING);
+
+			setTargetObject(obj);
+			//activateMovementEvent();
+		}
+	}
+
+	public void setFollowObject(SceneObject obj) {
+		synchronized (targetMutex) {
+			if (this.isRetreating())
+				return;
+
+			setFollowState(FOLLOWING);
+
+			setTargetObject(obj);
+			//activateMovementEvent();
+		}
+	}
+
+	public void setTargetObject(SceneObject obj) {
+		synchronized (targetMutex) {
+			if (followObject != obj) {
+				clearPatrolPoints();
+
+				followObject = obj;
+			}
+		}
+	}
+
+	@preLocked
+	public native void runAway(CreatureObject target, float range);
+
+	@preLocked
+	public native void leash();
+
+	public native boolean generatePatrol(int num, float dist);
+
+	@weakReference
+	public SceneObject getFollowObject() {
+		synchronized (targetMutex) {
+			return followObject;
+		}
+	}
+
+	public void storeFollowObject() {
+		synchronized (targetMutex) {
+			followStore = followObject;
+		}
+	}
+
+	public native void restoreFollowObject();
+
+	public unsigned int getFollowState() {
+		synchronized (targetMutex) {
+			return followState;
+		}
+	}
+
+	public void setFollowState(int state) {
+		synchronized (targetMutex) {
+			clearPatrolPoints();
+			followState = state;
+		}
+	}
+
+	@dirty
+	public native float getMaxDistance();
+	@preLocked
+	public native int setDestination();
+	@preLocked
+	public native boolean completeMove();
+
+	@preLocked
+	public void setWait(int wait) {
+		waitTime = wait;
+		if (waitTime != 0)
+			waiting = true;
+	}
+
+	@read
+	public int getWait() {
+		return waitTime;
+	}
+
+	@read
+	public boolean isWaiting() {
+		return waiting;
+	}
+
+	/**
+	 * Sets the waiting variable to false, which determines if an action can be performed
+	 * @pre { the AI is locked }
+	 * @post { the AI is locked, and ready to perform an action }
+	 */
+	@preLocked
+	public void stopWaiting() {
+		waiting = false;
+	}
+
+	@preLocked
+	public native void selectWeapon();
+	@preLocked
+	public native void selectDefaultWeapon();
+
+	@preLocked
+	public native boolean validateStateAttack(CreatureObject target, unsigned int actionCRC);
+
+	@preLocked
+	public native void selectSpecialAttack();
+	public native void selectSpecialAttack(int attackNum);
+	@preLocked
+	public native void selectDefaultAttack();
+	public native boolean validateStateAttack();
+
+	@preLocked
+	public native void enqueueAttack(int priority = -1);
+
+	@dirty
+	public boolean isRetreating() {
+		return !homeLocation.isReached();
+	}
+
+	public boolean isFleeing() {
+		return getFollowState() == FLEEING;
+	}
+
+	@preLocked
+	public native void clearDespawnEvent();
+
+	@dirty
+	public abstract float getKinetic() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getKinetic());
+		}
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getKinetic());
+	}
+
+	@dirty
+	public abstract float getEnergy() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getEnergy());
+		}
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getEnergy());
+	}
+
+	@dirty
+	public abstract float getElectricity() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getElectric());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getElectricity());
+	}
+
+	@dirty
+	public abstract float getStun() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getStun());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getStun());
+	}
+
+	@dirty
+	public abstract float getBlast() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getBlast());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getBlast());
+	}
+
+	@dirty
+	public abstract float getHeat() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getHeat());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getHeat());
+	}
+
+	@dirty
+	public abstract float getCold() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getCold());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getCold());
+	}
+
+	@dirty
+	public abstract float getAcid() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getAcid());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getAcid());
+	}
+
+	@dirty
+	public abstract float getLightSaber() {
+		if (petDeed != null) {
+			return getReducedResist(petDeed.getSaber());
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return getReducedResist(npcTemplate.get().getLightSaber());
+	}
+
+	@dirty
+	protected float getReducedResist(float value) {
+		if (super.shockWounds <= 500) {
+			return value;
+		}
+
+		float newValue = value - (value * (super.shockWounds - 500) * 0.001);
+
+		return newValue;
+	}
+
+	@dirty
+	public abstract boolean isSpecialProtection(int resistType) {
+		if (petDeed != null) {
+			return petDeed.isSpecialResist(resistType);
+		}
+
+		if (npcTemplate.get() == null)
+			return false;
+
+		return npcTemplate.get().isSpecialProtection(resistType);
+	}
+
+	@dirty
+	public boolean isStalker() {
+		if (npcTemplate.get() == null)
+			return false;
+
+		return npcTemplate.get().isStalker();
+	}
+
+	@dirty
+	public boolean isKiller() {
+		if (npcTemplate.get() == null)
+			return false;
+
+		return npcTemplate.get().isKiller();
+	}
+
+	@dirty
+	public unsigned int getFerocity() {
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return npcTemplate.get().getFerocity();
+	}
+
+	@dirty
+	public int getAggroRadius() {
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return npcTemplate.get().getAggroRadius();
+	}
+
+	@dirty
+	public abstract unsigned int getArmor() {
+		if (petDeed != null) {
+			return petDeed.getArmor();
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return npcTemplate.get().getArmor();
+	}
+
+	@read
+	public boolean getDespawnOnNoPlayerInRange() {
+		return despawnOnNoPlayerInRange;
+	}
+
+	@dirty
+	public int getNumberOfPlayersInRange() {
+		return numberOfPlayersInRange.get();
+	}
+
+	@dirty
+	public string getFactionString() {
+		if (npcTemplate.get() == null)
+			return "";
+
+		return npcTemplate.get().getFaction();
+	}
+
+	@dirty
+	public string getSocialGroup() {
+		if (npcTemplate.get() == null)
+			return "";
+
+		return npcTemplate.get().getSocialGroup();
+	}
+
+	@dirty
+	public float getChanceHit() {
+		if (petDeed != null) {
+			return petDeed.getHitChance();
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return npcTemplate.get().getChanceHit();
+	}
+
+	@dirty
+	public int getDamageMin() {
+		if (npcTemplate.get() == null)
+			return 0;
+
+		if (getWeapon() == null)
+			return 0;
+
+		return getWeapon().getMinDamage();
+
+		//return npcTemplate.get().getDamageMin();
+		//return calculateAttackMinDamage(super.getLevel());
+	}
+
+	@dirty
+	public int getDamageMax() {
+		if (npcTemplate.get() == null)
+			return 0;
+
+		if (getWeapon() == null)
+			return 0;
+
+		//return npcTemplate.get().getDamageMax();
+		return getWeapon().getMaxDamage();
+	}
+
+	@dirty
+	public abstract int getBaseXp() {
+		if (petDeed != null) {
+			return 100;
+		}
+
+		if (npcTemplate.get() == null || isEventMob())
+			return 0;
+
+		return npcTemplate.get().getBaseXp();
+	}
+
+	@dirty
+	public unsigned int getDiet() {
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return npcTemplate.get().getDiet();
+	}
+
+	@dirty
+	public unsigned int getTemplateLevel() {
+		if (petDeed != null) {
+			return petDeed.getLevel();
+		}
+
+		if (npcTemplate.get() == null)
+			return 1;
+
+		return npcTemplate.get().getLevel();
+	}
+
+	@dirty
+	public float getTame() {
+		if (petDeed != null) {
+			return 1;
+		}
+
+		if (npcTemplate.get() == null)
+			return 0;
+
+		return npcTemplate.get().getTame();
+	}
+
+	@local
+	public CreatureAttackMap getAttackMap() {
+		if (getWeapon() == readyWeapon) {
+			return attackMap;
+		} else {
+			return defaultAttackMap;
+		}
+	}
+
+	@local
+	@dirty
+	public LootGroupCollection getLootGroups() {
+		if (npcTemplate.get() == null || isEventMob())
+			return null;
+
+		return npcTemplate.get().getLootGroups();
+	}
+
+	@dirty
+	public abstract string getReactionStf() {
+		if (npcTemplate.get() == null)
+			return "";
+
+		return npcTemplate.get().getReactionStf();
+	}
+
+	@read
+	public float getRespawnTimer() {
+		return respawnTimer;
+	}
+
+	@read
+	public boolean getRandomRespawn() {
+		return randomRespawn;
+	}
+
+	@read
+	public int getRespawnCounter() {
+		return respawnCounter;
+	}
+
+	@local
+	@dirty
+	public PatrolPoint getHomeLocation() {
+		return homeLocation;
+	}
+
+	@dirty
+	public boolean isAiAgent() {
+		return true;
+	}
+	
+	@dirty
+	@nativeStub
+	@local
+	public native AiAgent asAiAgent();
+
+	@local
+	@dirty
+	public CreatureTemplate getCreatureTemplate() {
+		return npcTemplate.get();
+	}
+
+	@dirty
+	public native boolean hasLoot();
+
+	@preLocked
+	public void setShowNextPosition(boolean val) {
+		showNextMovementPosition = val;
+	}
+
+	@dirty
+	public native boolean isEventMob();
+
+	@dirty
+	public boolean isPet() {
+		return (getControlDevice() != null);
+	}
+
+	/**
+	 * Pull an AI template from AiMap and set up the tree using the rules from the template. Then 
+	 * store the root behavior in the trees Map.
+	 * 
+	 * TODO: Should we store the active (instead of root) node in the trees map? I like that idea -- dannuic
+	 * 
+	 * Maintain an unsorted vector of Behaviors for reference (TODO: needed? -- dannuic)
+	 * 
+	 * TODO: Do we actually need a map, or is one tree just fine? Only implement one AI per AiAgent for now,
+	 * we can implement a multi-AI system later if it's appropriate -- dannuic
+	 * 
+	 * Status is passed to the parent upon execution of doAction, which then sets the next Behavior
+	 * to the tree and runs it.
+	 */
+
+	/**
+	 * Sets up the behavior based on the creature bitmask
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 */
+	@local
+	@preLocked
+	public native void setupBehaviorTree();
+
+	/**
+	 * Sets up the behavior tree by forcing a template into it
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 * @param aiTemplate the template to load
+	 */
+	@local
+	@preLocked
+	public native void setupBehaviorTree(AiTemplate aiTemplate);
+
+	/**
+	 * Helper function for setting up the behavior tree from bitmask
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 * @param getTarget Template for target selection
+	 * @param selectAttack Template for attack selection
+	 * @param combatMove Template for movement when in combat
+	 * @param idle Template for idle behavior
+	 */
+	@local
+	@preLocked
+	public native void setupBehaviorTree(AiTemplate getTarget, AiTemplate selectAttack, AiTemplate combatMove, AiTemplate idle);
+
+	/**
+	 * Sets the behavior in the tree
+	 * @pre { this is locked }
+	 * @post { this is locked, behavior is set }
+	 * @param b the id of the behavior in the tree
+	 */
+	@local
+	@preLocked
+	public native void setCurrentBehavior(unsigned int b);
+
+	@read
+	public unsigned int getCurrentBehavior() {
+		return currentBehaviorID;
+	}
+
+	@local
+	@dirty
+	public native int getBehaviorStatus();
+
+	@local
+	@preLocked
+	public native void setBehaviorStatus(int status);
+
+	@local
+	private native void addBehaviorToTree(Behavior b, CompositeBehavior parent);
+
+	@local
+	private native void addCurrentBehaviorToTree(CompositeBehavior parent);
+
+	/**
+	 * Resets the behavior list to the default position
+	 * @pre { this is locked }
+	 * @post { this is locked }
+	 */
+	@local
+	@preLocked
+	public native void resetBehaviorList();
+
+	@local
+	@preLocked
+	public native void clearBehaviorList();
+
+	/**
+	 * Executes an interrupt called from a new thread
+	 * @pre { this is locked, source is locked }
+	 * @post { this is locked, source is locked }
+	 * @param source The originator of the interrupt call
+	 * @param msg The long id of the message (argument) of the interrupt
+	 */
+	@local
+	@preLocked
+	public native int interrupt(SceneObject source, long msg);
+
+	@local
+	@preLocked
+	public native void broadcastInterrupt(long msg);
+
+	@preLocked
+	public void setHomeObject(SceneObject home) {
+		homeObject = home;
+	}
+
+	@dirty
+	@local
+	@weakReference
+	public SceneObject getHomeObject() {
+		return homeObject;
+	}
+
+	/**
+	 * Sets the combat state
+	 * @pre { this object is locked }
+	 * @post { this object is locked, this object is in a combat state }
+	 */
+	@preLocked
+	public native void setCombatState();
+
+	@dirty
+	public int getCreatureBitmask() {
+		return creatureBitmask;
+	}
+
+	@preLocked
+	public void setCreatureBitmask(int mask) {
+		creatureBitmask = mask;
+	}
+
+	@local
+	@dirty
+	public Time getAlertedTime() {
+		return alertedTime;
+	}
+
+	public void incrementLuaCall(string key) {
+		trackingTask.incrementCall(key);
+	}
+
+	public void addToLuaTime(string key, unsigned long val) {
+		trackingTask.addTime(key, val);
+	}
+
+	public void outputLuaTimes(CreatureObject caller) {
+		trackingTask.outputTimes(caller);
+	}
+
+	public void rescheduleTrackingTask() {
+		if (trackingTask == null) {
+			trackingTask = new AiTrackingTask(this);
+			trackingTask.schedule(300000);
+		}
+
+		if (!trackingTask.isScheduled()) {
+			trackingTask.schedule(300000);
+		}
+	}
+
+	@dirty
+	public native boolean hasRangedWeapon();
+
+	public native boolean getUseRanged();
+
+	@dirty
+	public native boolean hasSpecialAttack(int num);
+
+	@preLocked
+	public void setPetDeed(PetDeed deed) {
+		petDeed = deed;
+	}
+
+	public boolean hasPetDeed() {
+		return petDeed != null;
+	}
+
+	@dirty
+	public PetDeed getPetDeed() {
+		return petDeed;
+	}
+
+	@preLocked
+	public native void sendReactionChat(int type, int state = 0, boolean force = false);
+
+	public abstract boolean hasReactionChatMessages() {
+		return getReactionStf() != "";
+	}
+
+	@local
+	public native float getEffectiveResist();
+
+	@dirty
+	public abstract native string getPersonalityStf();
+
+	@read
+	public int getReactionRank() {
+		return reactionRank;
+	}
+
+	@preLocked
+	public void setReactionRank(int rank) {
+		reactionRank = rank;
+	}
+	
+	@dirty
+	public int getHamMaximum() {
+		return npcTemplate.get().getBaseHAMmax();
+	}
+	@dirty
+	public int getHamBase() {
+		return npcTemplate.get().getBaseHAM();
+	}
+
+	/**
+	 * Reset the aiagent back to it's initial creation state.
+	 * this resets the HAM, Damage, Size and Weapons of the AiAgent. Used for Pet adjustments.
+	 */
+	@preLocked
+	public native void reloadTemplate();
+
+	@read
+	public unsigned int getConvoTemplateCRC() {
+		return convoTemplateCRC;
+	}
+
+	@preLocked
+	public native void setConvoTemplate(final string templateString);
+}

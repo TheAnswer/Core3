@@ -43,7 +43,7 @@
 #include "server/zone/objects/creature/CreatureAttribute.h"
 #include "server/zone/objects/creature/CreatureState.h"
 #include "server/zone/objects/creature/CreaturePosture.h"
-#include "server/zone/objects/creature/LuaAiAgent.h"
+#include "server/zone/objects/creature/ai/LuaAiAgent.h"
 #include "server/zone/objects/creature/ai/bt/Behavior.h"
 #include "server/zone/objects/area/LuaActiveArea.h"
 #include "server/zone/templates/mobile/ConversationScreen.h"
@@ -72,6 +72,7 @@
 #include "server/zone/packets/scene/PlayClientEffectLocMessage.h"
 #include "server/zone/managers/player/BadgeList.h"
 #include "server/zone/managers/player/LuaQuestInfo.h"
+#include "server/zone/objects/tangible/misc/FsPuzzlePack.h"
 
 int DirectorManager::DEBUG_MODE = 0;
 int DirectorManager::ERROR_CODE = NO_ERROR;
@@ -359,6 +360,8 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	luaEngine->setGlobalInt("WASLISTENEDTO", ObserverEventType::WASLISTENEDTO);
 	luaEngine->setGlobalInt("WASWATCHED", ObserverEventType::WASWATCHED);
 	luaEngine->setGlobalInt("PARENTCHANGED", ObserverEventType::PARENTCHANGED);
+	luaEngine->setGlobalInt("LOGGEDIN", ObserverEventType::LOGGEDIN);
+	luaEngine->setGlobalInt("LOGGEDOUT", ObserverEventType::LOGGEDOUT);
 
 	luaEngine->setGlobalInt("UPRIGHT", CreaturePosture::UPRIGHT);
 	luaEngine->setGlobalInt("PRONE", CreaturePosture::PRONE);
@@ -409,6 +412,7 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	luaEngine->setGlobalInt("MOVEIN", ContainerPermissions::MOVEIN);
 	luaEngine->setGlobalInt("MOVEOUT", ContainerPermissions::MOVEOUT);
 	luaEngine->setGlobalInt("WALKIN", ContainerPermissions::WALKIN);
+	luaEngine->setGlobalInt("MOVECONTAINER", ContainerPermissions::MOVECONTAINER);
 
 	// Transfer Error Codes
 	luaEngine->setGlobalInt("TRANSFERCANADD", TransferErrorCode::SUCCESS);
@@ -457,6 +461,7 @@ void DirectorManager::initializeLuaEngine(Lua* luaEngine) {
 	Luna<LuaStringIdChatParameter>::Register(luaEngine->getLuaState());
 	Luna<LuaTicketObject>::Register(luaEngine->getLuaState());
 	Luna<LuaQuestInfo>::Register(luaEngine->getLuaState());
+	Luna<LuaFsPuzzlePack>::Register(luaEngine->getLuaState());
 }
 
 int DirectorManager::loadScreenPlays(Lua* luaEngine) {
@@ -1470,15 +1475,28 @@ int DirectorManager::addStartingWeaponsInto(lua_State* L) {
 }
 
 int DirectorManager::giveItem(lua_State* L) {
-	if (checkArgumentCount(L, 3) == 1) {
+	int numberOfArguments = lua_gettop(L);
+	if (numberOfArguments != 3 && numberOfArguments != 4) {
 		instance()->error("incorrect number of arguments passed to DirectorManager::giveItem");
 		ERROR_CODE = INCORRECT_ARGUMENTS;
 		return 0;
 	}
 
-	SceneObject* obj = (SceneObject*) lua_touserdata(L, -3);
-	String objectString = lua_tostring(L, -2);
-	int slot = lua_tointeger(L, -1);
+	SceneObject* obj;
+	String objectString;
+	int slot = -1;
+	bool overload = false;
+
+	if (numberOfArguments == 3) {
+		obj = (SceneObject*) lua_touserdata(L, -3);
+		objectString = lua_tostring(L, -2);
+		slot = lua_tointeger(L, -1);
+	} else {
+		obj = (SceneObject*) lua_touserdata(L, -4);
+		objectString = lua_tostring(L, -3);
+		slot = lua_tointeger(L, -2);
+		bool overload = lua_toboolean(L, -1);
+	}
 
 	if (obj == NULL)
 		return 0;
@@ -1488,7 +1506,7 @@ int DirectorManager::giveItem(lua_State* L) {
 	ManagedReference<SceneObject*> item = zoneServer->createObject(objectString.hashCode(), 1);
 
 	if (item != NULL && obj != NULL) {
-		if (obj->transferObject(item, slot, true)) {
+		if (obj->transferObject(item, slot, true, overload)) {
 			item->_setUpdated(true); //mark updated so the GC doesnt delete it while in LUA
 
 			ManagedReference<SceneObject*> parent = item->getParentRecursively(SceneObjectType::PLAYERCREATURE);
@@ -1905,6 +1923,7 @@ int DirectorManager::spawnSceneObject(lua_State* L) {
 
 		lua_pushlightuserdata(L, object.get());
 	} else {
+		instance()->error("could not spawn template " + script);
 		lua_pushnil(L);
 	}
 
