@@ -74,6 +74,8 @@
 #include "server/zone/managers/terrain/TerrainManager.h"
 #include "server/zone/managers/resource/resourcespawner/SampleTask.h"
 
+#include "engine/task/ScheduledTask.h"
+
 #include "server/zone/templates/tangible/SharedCreatureObjectTemplate.h"
 
 #include "variables/Skill.h"
@@ -108,10 +110,12 @@ void CreatureObjectImplementation::initializeTransientMembers() {
 	setContainerOwnerID(getObjectID());
 	setMood(moodID);
 
+
 	setLoggingName("CreatureObject");
 }
 
 void CreatureObjectImplementation::initializeMembers() {
+
 	linkedCreature = NULL;
 	controlDevice = NULL;
 
@@ -984,7 +988,7 @@ int CreatureObjectImplementation::inflictDamage(TangibleObject* attacker, int da
 		return 0;
 	}
 
-	if (this->isIncapacitated() || this->isDead() || damage == 0)
+	if ((isIncapacitated() && !isFeigningDeath()) || this->isDead() || damage == 0)
 		return 0;
 
 	int currentValue = hamList.get(damageType);
@@ -1040,7 +1044,19 @@ int CreatureObjectImplementation::healDamage(TangibleObject* healer,
 			newValue = 1;
 
 		if (damageType % 3 == 0) {
+
 			setPosture(CreaturePosture::UPRIGHT);
+
+
+			if(isPlayerCreature()) {
+
+				PlayerObject* ghost = getPlayerObject();
+
+				if (ghost->getForcePowerMax() > 0 && ghost->getForcePower() < ghost->getForcePowerMax()) {
+					ghost->activateForcePowerRegen();
+				}
+			}
+
 			if (isPet()) {
 				AiAgent* pet = asAiAgent();
 				ManagedReference<CreatureObject*> player = getLinkedCreature().get();
@@ -1415,6 +1431,7 @@ void CreatureObjectImplementation::addSkill(const String& skill,
 }
 
 void CreatureObjectImplementation::updatePostures(bool immediate) {
+
 	updateSpeedAndAccelerationMods();
 
 	// TODO: these two seem to be as of yet unused (maybe only necessary in client)
@@ -1811,6 +1828,11 @@ void CreatureObjectImplementation::enqueueCommand(unsigned int actionCRC,
 		return;
 	}
 
+	if(queueCommand->addToCombatQueue()) {
+		removeBuff(STRING_HASHCODE("private_feign_buff"));
+	}
+
+
 	if (priority < 0)
 		priority = queueCommand->getDefaultPriority();
 
@@ -2002,6 +2024,7 @@ void CreatureObjectImplementation::notifyLoadFromDatabase() {
 		bankCredits = 0;
 
 	if (isIncapacitated()) {
+
 		int health = getHAM(CreatureAttribute::HEALTH);
 
 		if (health < 0)
@@ -2016,6 +2039,9 @@ void CreatureObjectImplementation::notifyLoadFromDatabase() {
 
 		if (mind < 0)
 			setHAM(CreatureAttribute::MIND, 1);
+
+
+		removeFeignedDeath();
 
 		setPosture(CreaturePosture::UPRIGHT);
 	}
@@ -2139,6 +2165,65 @@ float CreatureObjectImplementation::calculateBFRatio() {
 		return ((((float) shockWounds) - 250.0f) / 1000.0f);
 }
 
+void CreatureObjectImplementation::removeFeignedDeath() {
+
+	ManagedReference<CreatureObject*> creo = _this.getReferenceUnsafeStaticCast();
+
+	clearState(CreatureState::FEIGNDEATH); // This must always be done before setting the player upright
+	removeBuff(STRING_HASHCODE("private_feign_buff"));
+	removeBuff(STRING_HASHCODE("private_feign_damage_buff"));
+}
+
+void CreatureObjectImplementation::setFeignedDeathState() {
+	setState(CreatureState::FEIGNDEATH);
+}
+
+bool CreatureObjectImplementation::canFeignDeath() {
+
+	if(isKneeling())
+		return false;
+
+	if(getHAM(CreatureAttribute::HEALTH) <= 100 && getHAM(CreatureAttribute::ACTION) <= 100 && getHAM(CreatureAttribute::MIND) <= 100)
+		return false;
+
+	const int maxDefenders = 5;
+
+	int defenderCount = getDefenderList()->size();
+	int skillMod = getSkillMod("feign_death");
+
+	if(defenderCount > maxDefenders)
+		defenderCount = maxDefenders;
+
+	for(int i=0; i<defenderCount; i++) {
+		if(System::random(100) > skillMod)
+			return false;
+	}
+
+	return true;
+}
+
+void CreatureObjectImplementation::feignDeath() {
+	ManagedReference<CreatureObject*> creo = _this.getReferenceUnsafeStaticCast();
+
+	creo->setCountdownTimer(5);
+	creo->updateCooldownTimer("command_message", 5 * 1000);
+	creo->setFeignedDeathState();
+	creo->setPosture(CreaturePosture::INCAPACITATED, false, false);
+
+	PrivateSkillMultiplierBuff *buff = new PrivateSkillMultiplierBuff(creo, STRING_HASHCODE("private_feign_damage_buff"), std::numeric_limits<float>::max(), BuffType::OTHER);
+
+	Locker blocker(buff, creo);
+	buff->setSkillModifier("private_damage_divisor", 4);
+	buff->setSkillModifier("private_damage_multiplier", 5);
+	creo->addBuff(buff);
+
+	// We need to delay the forcePeace until after the CombatAction is executed
+	SCHEDULE_TASK_1(creo, 250, {
+			Locker lock(creo_p);
+			CombatManager::instance()->forcePeace(creo_p);
+	});
+}
+
 void CreatureObjectImplementation::setDizziedState(int durationSeconds) {
 	uint32 buffCRC = Long::hashCode(CreatureState::DIZZY);
 
@@ -2226,6 +2311,7 @@ void CreatureObjectImplementation::setBerserkedState(uint32 duration) {
 		addBuff(state);
 	}
 }
+
 void CreatureObjectImplementation::setStunnedState(int durationSeconds) {
 	uint32 buffCRC = Long::hashCode(CreatureState::STUNNED);
 
@@ -2283,6 +2369,8 @@ void CreatureObjectImplementation::setIntimidatedState(int durationSeconds) {
 		Reference<CreatureObject*> creo = _this.getReferenceUnsafeStaticCast();
 
 		showFlyText("combat_effects", "go_intimidated", 0, 0xFF, 0);
+
+		creo->playEffect("clienteffect/combat_special_defender_intimidate.cef");
 
 		creo->renewBuff(buffCRC, durationSeconds);
 	} else {
@@ -2373,12 +2461,19 @@ void CreatureObjectImplementation::queueDizzyFallEvent() {
 }
 
 void CreatureObjectImplementation::activateStateRecovery() {
-	//applyDots();
 	if (damageOverTimeList.hasDot() && damageOverTimeList.isNextTickPast()) {
 		damageOverTimeList.activateDots(asCreatureObject());
 	}
 
-	//updateStates();
+	// clear any stuck states
+	if (isBleeding() && !damageOverTimeList.hasDot(CreatureState::BLEEDING))
+		clearState(CreatureState::BLEEDING);
+	if (isPoisoned() && !damageOverTimeList.hasDot(CreatureState::POISONED))
+		clearState(CreatureState::POISONED);
+	if (isDiseased() && !damageOverTimeList.hasDot(CreatureState::DISEASED))
+		clearState(CreatureState::DISEASED);
+	if (isOnFire() && !damageOverTimeList.hasDot(CreatureState::ONFIRE))
+		clearState(CreatureState::ONFIRE);
 }
 
 void CreatureObjectImplementation::updateToDatabaseAllObjects(bool startTask) {
@@ -2746,7 +2841,7 @@ bool CreatureObjectImplementation::isAttackableBy(TangibleObject* object, bool b
 	if (ghost->isOnLoadScreen())
 		return false;
 
-	if ((!bypassDeadCheck && (isDead() || isIncapacitated())) || isInvisible())
+	if ((!bypassDeadCheck && (isDead() || (isIncapacitated() && !isFeigningDeath()))) || isInvisible())
 		return false;
 
 	if (getPvpStatusBitmask() == CreatureFlag::NONE)

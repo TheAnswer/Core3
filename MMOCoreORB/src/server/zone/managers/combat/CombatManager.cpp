@@ -30,19 +30,6 @@
 
 #define COMBAT_SPAM_RANGE 85
 
-const uint32 CombatManager::defaultAttacks[9] = { //
-		0x99476628, // attack_high_left_light_0
-		0xF5547B91, // attack_high_center_light_0
-		0x3CE273EC, // attack_high_right_light_0
-		0x734C00C,  // attack_mid_left_light_0
-		0x43C4FFD0, // attack_mid_center_light_0
-		0x56D7CC78, // attack_mid_right_light_0
-		0x4B41CAFB, // attack_low_left_light_0
-		0x2257D06B, // attack_low_right_light_0
-		0x306887EB  // attack_low_center_light_0
-};
-
-
 bool CombatManager::startCombat(CreatureObject* attacker, TangibleObject* defender, bool lockDefender) {
 	if (attacker == defender)
 		return false;
@@ -66,7 +53,8 @@ bool CombatManager::startCombat(CreatureObject* attacker, TangibleObject* defend
 	if (!defender->isAttackableBy(attacker))
 		return false;
 
-	if (defender->isCreatureObject() && defender->asCreatureObject()->isIncapacitated())
+	CreatureObject *creo = defender->asCreatureObject();
+	if (creo != NULL && creo->isIncapacitated() && creo->isFeigningDeath() == false)
 		return false;
 
 	if (attacker->isPlayerCreature() && attacker->getPlayerObject()->isAFK())
@@ -191,17 +179,26 @@ int CombatManager::doCombatAction(CreatureObject* attacker, WeaponObject* weapon
 	//info("past special attack cost", true);
 
 	int damage = 0;
+	damage = doTargetCombatAction(attacker, weapon, defenderObject, data);
 
-	if (data.getCommand()->isAreaAction() || data.getCommand()->isConeAction())
-		damage = doAreaCombatAction(attacker, weapon, defenderObject, data);
-	else
-		damage = doTargetCombatAction(attacker, weapon, defenderObject, data);
+	if (data.getCommand()->isAreaAction() || data.getCommand()->isConeAction()) {
+
+		Reference<SortedVector<ManagedReference<TangibleObject*> >* > areaDefenders = getAreaTargets(attacker, weapon, defenderObject, data);
+
+		for(int i=0; i<areaDefenders->size(); i++) {
+			damage += doTargetCombatAction(attacker, weapon, areaDefenders->get(i), data);
+		}
+	}
 
 	if (damage > 0) {
 		attacker->updateLastSuccessfulCombatAction();
 
 		if (attacker->isPlayerCreature() && data.getCommandCRC() != STRING_HASHCODE("attack"))
 			weapon->decay(attacker);
+
+		// This method can be called multiple times for area attacks. Let the calling method decrease the powerup once
+		if (data.getAttackType() == CombatManager::WEAPONATTACK)
+			weapon->decreasePowerupUses(attacker);
 	}
 
 	return damage;
@@ -209,15 +206,21 @@ int CombatManager::doCombatAction(CreatureObject* attacker, WeaponObject* weapon
 
 int CombatManager::doCombatAction(TangibleObject* attacker, WeaponObject* weapon, TangibleObject* defender, CombatQueueCommand* command){
 
+	const CreatureAttackData data = CreatureAttackData("", command, defender->getObjectID());
+	int damage = 0;
+
 	if(weapon != NULL){
-		if(!command->isAreaAction()){
-			return doTargetCombatAction(attacker, weapon, defender, CreatureAttackData("",command, defender->getObjectID()));
-		} else {
-			return doAreaCombatAction(attacker, weapon, defender, CreatureAttackData("",command, defender->getObjectID()));
+		damage = doTargetCombatAction(attacker, weapon, defender, data);
+
+		if (data.getCommand()->isAreaAction() || data.getCommand()->isConeAction()) {
+			Reference<SortedVector<ManagedReference<TangibleObject*> >* > areaDefenders = getAreaTargets(attacker, weapon, defender, data);
+			for(int i=0; i<areaDefenders->size(); i++) {
+				damage += doTargetCombatAction(attacker, weapon, areaDefenders->get(i), data);
+			}
 		}
 	}
 
-	return 0;
+	return damage;
 }
 
 int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* weapon, TangibleObject* tano, const CreatureAttackData& data) {
@@ -246,9 +249,10 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 		broadcastCombatAction(attacker, tano, weapon, data, 0x01);
 
 		data.getCommand()->sendAttackCombatSpam(attacker, tano, HIT, damage, data);
+
 	}
 
-	tano->notifyObservers(ObserverEventType::DAMAGERECEIVED, attacker, damage);
+
 
 	if (damage > 0 && tano->isAiAgent()) {
 		AiAgent* aiAgent = cast<AiAgent*>(tano);
@@ -306,8 +310,6 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 		broadcastCombatAction(attacker, defender, weapon, data, hitVal);
 		return 0;
 		break;
-	case HIT:
-		break;
 	case BLOCK:
 		doBlock(attacker, weapon, defender, damage);
 		damageMultiplier = 0.5f;
@@ -332,6 +334,8 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 
 	// Apply states first
 	applyStates(attacker, defender, data);
+
+
 
 	//if it's a state only attack (intimidate, warcry, wookiee roar) don't apply dots or break combat delays
 	if (!data.isStateOnlyAttack()) {
@@ -452,6 +456,7 @@ int CombatManager::doTargetCombatAction(TangibleObject* attacker, WeaponObject* 
 	defenderObject->updatePostures(false);
 
 	uint32 animationCRC = data.getAnimationCRC();
+
 	combatAction = new CombatAction(attacker, defenderObject, animationCRC, hitVal, CombatManager::DEFAULTTRAIL);
 	attacker->broadcastMessage(combatAction,true);
 
@@ -459,7 +464,7 @@ int CombatManager::doTargetCombatAction(TangibleObject* attacker, WeaponObject* 
 }
 
 void CombatManager::applyDots(CreatureObject* attacker, CreatureObject* defender, const CreatureAttackData& data, int appliedDamage, int unmitDamage, int poolsToDamage) {
-	VectorMap<uint64, DotEffect>* dotEffects = data.getDotEffects();
+	Vector<DotEffect>* dotEffects = data.getDotEffects();
 
 	if (defender->isPlayerCreature() && defender->getPvpStatusBitmask() == CreatureFlag::NONE)
 		return;
@@ -497,7 +502,7 @@ void CombatManager::applyDots(CreatureObject* attacker, CreatureObject* defender
 			pool = getPoolForDot(dotType, poolsToDamage);
 		}
 
-		//info("entering addDotState", true);
+		//info("entering addDotState with CRC:" + String::valueOf(dotCRC), true);
 		float damMod = attacker->isAiAgent() ? cast<AiAgent*>(attacker)->getSpecialDamageMult() : 1.f;
 		defender->addDotState(attacker, dotType, data.getCommand()->getNameCRC(),
 				effect.isDotDamageofHit() ? damageToApply * effect.getPrimaryPercent() / 100.0f 
@@ -1891,12 +1896,13 @@ int CombatManager::applyDamage(TangibleObject* attacker, WeaponObject* weapon, C
 	if ((poolsToDamage ^ 0x7) & MIND)
 		defender->inflictDamage(attacker, CreatureAttribute::MIND, (int)(maxDamage/10.f + 0.5f), true, xpType, true, true);
 
-	// This method can be called multiple times for area attacks. Let the calling method decrease the powerup once
-	if (data.getAttackType() == CombatManager::WEAPONATTACK && !data.getCommand()->isAreaAction() && !data.getCommand()->isConeAction() && attacker->isCreatureObject()) {
-		weapon->decreasePowerupUses(attacker->asCreatureObject());
+	int totalDamage =  (int) (healthDamage + actionDamage + mindDamage);
+	if(totalDamage != 0) {
+		defender->notifyObservers(ObserverEventType::DAMAGERECEIVED, attacker, totalDamage);
 	}
 
-	return (int) (healthDamage + actionDamage + mindDamage);
+	return totalDamage;
+
 }
 
 int CombatManager::applyDamage(CreatureObject* attacker, WeaponObject* weapon, TangibleObject* defender, int poolsToDamage, const CreatureAttackData& data) {
@@ -1945,9 +1951,8 @@ int CombatManager::applyDamage(CreatureObject* attacker, WeaponObject* weapon, T
 
 	defender->inflictDamage(attacker, 0, damage, true, xpType, true, true);
 
-	// This method can be called multiple times for area attacks. Let the calling method decrease the powerup once
-	if (data.getAttackType() == CombatManager::WEAPONATTACK && !data.getCommand()->isAreaAction() && !data.getCommand()->isConeAction())
-		weapon->decreasePowerupUses(attacker);
+	if(damage != 0)
+		defender->notifyObservers(ObserverEventType::DAMAGERECEIVED, attacker, damage);
 
 	return damage;
 }
@@ -2045,7 +2050,7 @@ void CombatManager::broadcastCombatAction(CreatureObject * attacker, TangibleObj
 
 	uint32 animationCRC = data.getAnimationCRC();
 
-	if (!attacker->isCreature() && animationCRC == 0)
+	if (animationCRC == 0)
 		animationCRC = getDefaultAttackAnimation(attacker);
 
 	CreatureObject *dcreo = defenderObject->asCreatureObject();
@@ -2379,42 +2384,50 @@ bool CombatManager::checkConeAngle(SceneObject* target, float angle,
 }
 
 uint32 CombatManager::getDefaultAttackAnimation(CreatureObject* creature) {
-	// TODO: this needs to be fixed - Default and counter-attack animation names should be generated.
+	// TODO: this needs to be fixed - All animation names should be generated.
 	// This may make a lot more sense to place in a virtual CombatQueueCommand func
 	// Ex: attack_mid_center_medium_2 attack_high_right_light_0  attack_low_center_light_3
 	// _high _mid _low _left _right  should be based on hit location
 	// _light _medium should be based on damage and also applied to most special attacks
 	// _0 _1 _2 _3 should be played in sequence
 
+	// Ranged attacks are formatted "fire_[number_of_shots]_[special]_[intensity]_[location]"
+	// Ranged attacks only have "face" as a location target as well as the light/medium intensity
+	// Ex: fire_5_special_single_light_face
+
+	// Special attacks have _special_ inserted into them and generally do not have locational damage
 
 	WeaponObject* weapon = creature->getWeapon();
 
 	if(!creature->isCreature()) {
 		if (weapon->isRangedWeapon())
-			return 0x506E9D4C;
+			return defaultRangedAttacks.get(System::random(defaultRangedAttacks.size()-1));
 		else
-			return defaultAttacks[System::random(8)];
+			return defaultMeleeAttacks.get(System::random(defaultMeleeAttacks.size()-1));
 	} else {
 		if (creature->getGameObjectType() == SceneObjectType::DROIDCREATURE || creature->getGameObjectType() == SceneObjectType::PROBOTCREATURE)
-			return STRING_HASHCODE("droid_attack_light");
+			return (System::random(1) ? STRING_HASHCODE("droid_attack_medium") : STRING_HASHCODE("droid_attack_light"));
 		else if (weapon->isRangedWeapon())
-			return STRING_HASHCODE("creature_attack_ranged_light");
-		else
-			return STRING_HASHCODE("creature_attack_light");
+			return (System::random(1) ? STRING_HASHCODE("creature_attack_ranged_medium") : STRING_HASHCODE("creature_attack_ranged_light"));
+		else {
+			return (System::random(1) ? STRING_HASHCODE("creature_attack_medium") : STRING_HASHCODE("creature_attack_light"));
+		}
 	}
 }
 
-int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data) {
+Reference<SortedVector<ManagedReference<TangibleObject*> >* > CombatManager::getAreaTargets(TangibleObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data) {
 	float creatureVectorX = attacker->getPositionX();
 	float creatureVectorY = attacker->getPositionY();
 
 	float directionVectorX = defenderObject->getPositionX() - creatureVectorX;
 	float directionVectorY = defenderObject->getPositionY() - creatureVectorY;
 
+	Reference<SortedVector<ManagedReference<TangibleObject*> >* > defenders = new SortedVector<ManagedReference<TangibleObject*> >();
+
 	Zone* zone = attacker->getZone();
 
 	if (zone == NULL)
-		return 0;
+		return defenders;
 
 	PlayerManager* playerManager = zone->getZoneServer()->getPlayerManager();
 
@@ -2436,13 +2449,16 @@ int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* we
 		range = weapon->getMaxRange();
 	}
 
+	if (data.isSplashDamage())
+		range += data.getRange();
+
 	if (weapon->isThrownWeapon() || weapon->isHeavyWeapon())
 		range = weapon->getMaxRange() + data.getAreaRange();
 
 	try {
 		//zone->rlock();
 
-		CloseObjectsVector* vec = (CloseObjectsVector*) attacker->getCloseObjects();
+		CloseObjectsVector* vec =  (CloseObjectsVector*)attacker->getCloseObjects();
 
 		SortedVector<QuadTreeEntry*> closeObjects;
 
@@ -2450,7 +2466,7 @@ int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* we
 			closeObjects.removeAll(vec->size(), 10);
 			vec->safeCopyTo(closeObjects);
 		} else {
-			attacker->info("Null closeobjects vector in CombatManager::doAreaCombatAction", true);
+			attacker->info("Null closeobjects vector in CombatManager::getAreaTargets", true);
 			zone->getInRangeObjects(attacker->getWorldPositionX(), attacker->getWorldPositionY(), 128, &closeObjects, true);
 		}
 
@@ -2458,12 +2474,13 @@ int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* we
 			SceneObject* object = cast<SceneObject*>(closeObjects.get(i));
 
 			TangibleObject* tano = object->asTangibleObject();
+			CreatureObject* creo = object->asCreatureObject();
 
 			if (tano == NULL) {
 				continue;
 			}
 
-			if (object == attacker) {
+			if (object == attacker || object == defenderObject) {
 				//error("object is attacker");
 				continue;
 			}
@@ -2478,12 +2495,12 @@ int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* we
 				continue;
 			}
 
-			if (weapon->isThrownWeapon() || weapon->isHeavyWeapon()) {
-				if (!(tano == defenderObject) && !(tano->isInRange(defenderObject, data.getAreaRange() + defenderObject->getTemplateRadius())))
+			if (data.isSplashDamage() || weapon->isThrownWeapon() || weapon->isHeavyWeapon()) {
+				if (!(tano->isInRange(defenderObject, data.getAreaRange() + defenderObject->getTemplateRadius())))
 					continue;
 			}
 
-			if (tano->isCreatureObject() && tano->asCreatureObject()->isIncapacitated()) {
+			if (creo != NULL && creo->isFeigningDeath() == false && creo->isIncapacitated()) {
 				//error("object is incapacitated");
 				continue;
 			}
@@ -2496,13 +2513,13 @@ int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* we
 			//			zone->runlock();
 
 			try {
-				if (tano == defenderObject || (!(weapon->isThrownWeapon()) && !(weapon->isHeavyWeapon()))) {
+				if (!(weapon->isThrownWeapon()) && !(data.isSplashDamage()) && !(weapon->isHeavyWeapon())) {
 					if (CollisionManager::checkLineOfSight(object, attacker)) {
-						damage += doTargetCombatAction(attacker, weapon, tano, data);
+						defenders->put(tano);
 					}
 				} else {
 					if (CollisionManager::checkLineOfSight(object, defenderObject)) {
-						damage += doTargetCombatAction(attacker, weapon, tano, data);
+						defenders->put(tano);
 					}
 				}
 			} catch (Exception& e) {
@@ -2523,114 +2540,7 @@ int CombatManager::doAreaCombatAction(CreatureObject* attacker, WeaponObject* we
 		throw;
 	}
 
-	if (data.getAttackType() == CombatManager::WEAPONATTACK)
-		weapon->decreasePowerupUses(attacker);
-
-	return damage;
-}
-
-int CombatManager::doAreaCombatAction(TangibleObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data){
-	float creatureVectorX = attacker->getPositionX();
-	float creatureVectorY = attacker->getPositionY();
-
-	float directionVectorX = defenderObject->getPositionX() - creatureVectorX;
-	float directionVectorY = defenderObject->getPositionY() - creatureVectorY;
-
-	Zone* zone = attacker->getZone();
-
-	if (zone == NULL)
-		return 0;
-
-	PlayerManager* playerManager = zone->getZoneServer()->getPlayerManager();
-
-	int damage = 0;
-
-	int range = data.getAreaRange();
-
-	if (data.getCommand()->isConeAction()) {
-		range = data.getRange();
-	}
-
-	if (range < 0) {
-		range = weapon->getMaxRange();
-	}
-
-	try {
-		//zone->rlock();
-
-		CloseObjectsVector* vec = (CloseObjectsVector*) attacker->getCloseObjects();
-
-		SortedVector<QuadTreeEntry*> closeObjects;
-
-		if (vec != NULL) {
-			closeObjects.removeAll(vec->size(), 10);
-			vec->safeCopyTo(closeObjects);
-		} else {
-			attacker->info("Null closeobjects vector in CombatManager::doAreaCombatAction", true);
-			zone->getInRangeObjects(attacker->getWorldPositionX(), attacker->getWorldPositionY(), 128, &closeObjects, true);
-		}
-
-		for (int i = 0; i < closeObjects.size(); ++i) {
-			SceneObject* object = cast<SceneObject*>(closeObjects.get(i));
-
-			TangibleObject* tano = object->asTangibleObject();
-
-			if (tano == NULL) {
-				continue;
-			}
-
-			if (object == attacker) {
-				//error("object is attacker");
-				continue;
-			}
-
-			if (!(tano->getPvpStatusBitmask() & CreatureFlag::ATTACKABLE)) {
-				//error("object is not attackable");
-				continue;
-			}
-
-			if (!attacker->isInRange(object, range + object->getTemplateRadius() + attacker->getTemplateRadius())) {
-				//error("not in range " + String::valueOf(range));
-				continue;
-			}
-
-			if (tano->isCreatureObject() && tano->asCreatureObject()->isIncapacitated()) {
-				//error("object is incapacitated");
-				continue;
-			}
-
-			if (data.getCommand()->isConeAction() && !checkConeAngle(tano, data.getConeAngle(), creatureVectorX, creatureVectorY, directionVectorX, directionVectorY)) {
-				//error("object is not in cone angle");
-				continue;
-			}
-
-			//			zone->runlock();
-
-			try {
-				if (CollisionManager::checkLineOfSight(object, attacker)) {
-					damage += doTargetCombatAction(attacker, weapon, tano, data);
-
-				}
-			} catch (Exception& e) {
-				error(e.getMessage());
-			} catch (...) {
-				//zone->rlock();
-
-				throw;
-			}
-
-			//			zone->rlock();
-		}
-
-		//		zone->runlock();
-	} catch (...) {
-		//		zone->runlock();
-
-		throw;
-	}
-
-	return damage;
-	return 0;
+	return defenders;
 }
 
 int CombatManager::getArmorTurretReduction(CreatureObject* attacker, TangibleObject* defender, int damageType) {
@@ -2679,4 +2589,97 @@ int CombatManager::getArmorTurretReduction(CreatureObject* attacker, TangibleObj
 	}
 
 	return resist;
+}
+
+void CombatManager::initializeDefaultAttacks() {
+
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_1_single_light"));
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_1_single_medium"));
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_1_single_light_face"));
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_1_single_medium_face"));
+
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_3_single_light"));
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_3_single_medium"));
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_3_single_light_face"));
+	defaultRangedAttacks.add(STRING_HASHCODE("fire_3_single_medium_face"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_light_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_light_0"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_medium_0"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_medium_0"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_light_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_light_1"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_medium_1"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_medium_1"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_light_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_light_2"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_medium_2"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_medium_2"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_light_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_light_3"));
+
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_left_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_center_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_high_right_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_left_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_center_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_mid_right_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_left_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_right_medium_3"));
+	defaultMeleeAttacks.add(STRING_HASHCODE("attack_low_center_medium_3"));
 }

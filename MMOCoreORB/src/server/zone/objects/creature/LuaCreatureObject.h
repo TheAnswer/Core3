@@ -55,6 +55,8 @@ namespace creature {
 		int getMaxHAM(lua_State* L);
 		int inflictDamage(lua_State* L);
 		//int playEffect(lua_State* L);
+		int isFeigningDeath(lua_State* L);
+		int hasState(lua_State* L);
 		int setState(lua_State* L);
 		int setPosture(lua_State* L);
 		int setMoodString(lua_State* L);
@@ -107,6 +109,9 @@ namespace creature {
 		int isInCombat(lua_State* L);
 		int healDamage(lua_State* L);
 		int getGroupID(lua_State* L);
+		int enhanceCharacter(lua_State* L);
+		int setWounds(lua_State* L);
+		int setShockWounds(lua_State* L);
 	private:
 		// The pointer to the 'real object' defined in object.cc
 		CreatureObject* realObject;

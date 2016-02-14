@@ -61,6 +61,8 @@ Luna<LuaCreatureObject>::RegType LuaCreatureObject::Register[] = {
 		{ "isInRangeWithObject", &LuaSceneObject::isInRangeWithObject },
 		{ "getDistanceTo", &LuaSceneObject::getDistanceTo },
 		{ "getServerObjectCRC", &LuaSceneObject::getServerObjectCRC },
+		{ "isFeigningDeath", &LuaCreatureObject::isFeigningDeath},
+		{ "hasState", &LuaCreatureObject::hasState},
 		{ "setState", &LuaCreatureObject::setState},
 		{ "setLootRights", &LuaCreatureObject::setLootRights},
 		{ "getPosture", &LuaCreatureObject::getPosture},
@@ -119,6 +121,9 @@ Luna<LuaCreatureObject>::RegType LuaCreatureObject::Register[] = {
 		{ "isInCombat", &LuaCreatureObject::isInCombat },
 		{ "healDamage", &LuaCreatureObject::healDamage },
 		{ "getGroupID", &LuaCreatureObject::getGroupID },
+		{ "enhanceCharacter", &LuaCreatureObject::enhanceCharacter },
+		{ "setWounds", &LuaCreatureObject::setWounds },
+		{ "setShockWounds", &LuaCreatureObject::setShockWounds },
 		{ 0, 0 }
 };
 
@@ -171,6 +176,18 @@ int LuaCreatureObject::addDotState(lua_State* L) {
 	realObject->addDotState(attacker, dotType, objectID, strength, type, duration, potency, defense);
 
 	return 0;
+}
+
+int LuaCreatureObject::isFeigningDeath(lua_State* L) {
+	lua_pushnumber(L, realObject->isFeigningDeath());
+	return 1;
+}
+
+int LuaCreatureObject::hasState(lua_State* L) {
+	uint32 state = (uint32) lua_tonumber(L, -1);
+
+	lua_pushnumber(L, realObject->hasState(state));
+	return 1;
 }
 
 int LuaCreatureObject::setState(lua_State* L) {
@@ -912,4 +929,28 @@ int LuaCreatureObject::getGroupID(lua_State* L) {
 	lua_pushnumber(L, realObject->getGroupID());
 
 	return 1;
+}
+
+int LuaCreatureObject::enhanceCharacter(lua_State* L) {
+	PlayerManager* playerManager = realObject->getZoneServer()->getPlayerManager();
+	playerManager->enhanceCharacter(realObject);
+
+	return 0;
+}
+
+int LuaCreatureObject::setWounds(lua_State* L) {
+	int amount = lua_tointeger(L, -1);
+	int pool = lua_tointeger(L, -2);
+
+	realObject->setWounds(pool, amount, true);
+
+	return 0;
+}
+
+int LuaCreatureObject::setShockWounds(lua_State* L) {
+	int amount = lua_tointeger(L, -1);
+
+	realObject->setShockWounds(amount, true);
+
+	return 0;
 }

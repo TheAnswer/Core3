@@ -89,11 +89,18 @@ public:
 	const static int WEAPONATTACK = 0x0;
 	const static int FORCEATTACK = 0x1;
 
+	Vector<uint32> defaultMeleeAttacks;
+	Vector<uint32> defaultRangedAttacks;
+
+private:
+	void initializeDefaultAttacks();
+
 public:
 	CombatManager() {
 		setLoggingName("CombatManager");
 		setGlobalLogging(false);
 		setLogging(false);
+		initializeDefaultAttacks();
 	}
 
 	/**
@@ -135,6 +142,8 @@ public:
 	 */
 	int doCombatAction(TangibleObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, CombatQueueCommand* command);
 	int doCombatAction(CreatureObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data);
+
+	Reference<SortedVector<ManagedReference<TangibleObject*> >* > getAreaTargets(TangibleObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data);
 
 	/**
 	 * Requests duel
@@ -190,8 +199,6 @@ protected:
 
 
 	int doTargetCombatAction(CreatureObject* attacker, WeaponObject* weapon, CreatureObject* defenderObject, const CreatureAttackData& data);
-	int doAreaCombatAction(TangibleObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data);
-	int doAreaCombatAction(CreatureObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data);
 	int doTargetCombatAction(CreatureObject* attacker, WeaponObject* weapon, TangibleObject* defenderObject, const CreatureAttackData& data);
 	void applyDots(CreatureObject* attacker, CreatureObject* defender, const CreatureAttackData& data, int appliedDamage, int unmitDamage, int poolsToDamage);
 	void applyWeaponDots(CreatureObject* attacker, CreatureObject* defender, WeaponObject* weapon);

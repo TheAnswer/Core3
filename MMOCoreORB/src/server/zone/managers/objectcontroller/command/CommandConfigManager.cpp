@@ -314,7 +314,6 @@ void CommandConfigManager::registerSpecialCommands(CommandList* sCommands) {
 	createCommand(String("mildDisease").toLowerCase())->setCommandGroup(0xe1c9a54a);
 	createCommand(String("strongDisease").toLowerCase())->setCommandGroup(0xe1c9a54a);
 	createCommand(String("turretFire").toLowerCase())->setCommandGroup(0xe1c9a54a);
-	createCommand(String("turretFireManual").toLowerCase())->setCommandGroup(0xe1c9a54a);
 	createCommand(String("minefieldAttack").toLowerCase())->setCommandGroup(0xe1c9a54a);
 	createCommand(String("creatureRangedAttack").toLowerCase())->setCommandGroup(0xe1c9a54a);
 	createCommand(String("defaultDroidAttack").toLowerCase())->setCommandGroup(0xe1c9a54a);
@@ -367,6 +366,7 @@ void CommandConfigManager::registerGlobals() {
 	setGlobalLong("TUMBLING_STATE", CreatureState::TUMBLING);
 	setGlobalLong("RALLIED_STATE", CreatureState::RALLIED);
 	setGlobalLong("STUNNED_STATE", CreatureState::STUNNED);
+	setGlobalLong("FEIGNDEATH_STATE", CreatureState::FEIGNDEATH);
 	setGlobalLong("BLINDED_STATE", CreatureState::BLINDED);
 	setGlobalLong("DIZZY_STATE", CreatureState::DIZZY);
 	setGlobalLong("INTIMIDATED_STATE", CreatureState::INTIMIDATED);
@@ -608,6 +608,9 @@ void CommandConfigManager::parseVariableData(String varName, LuaObject &command,
 			combatCommand->setAccuracySkillMod(Lua::getStringParameter(L));
 		else if (varName == "areaAction") {
 			combatCommand->setAreaAction((bool)lua_toboolean(L, -1));
+			command.pop();
+		} else if (varName == "splashDamage") {
+			combatCommand->setSplashDamage((bool)lua_toboolean(L, -1));
 			command.pop();
 		} else if (varName == "coneAction") {
 			combatCommand->setConeAction((bool)lua_toboolean(L, -1));
@@ -1491,7 +1494,6 @@ void CommandConfigManager::registerCommands() {
 	commandFactory.registerCommand<TumbleToProneCommand>(String("tumbleToProne").toLowerCase());
 	commandFactory.registerCommand<TumbleToStandingCommand>(String("tumbleToStanding").toLowerCase());
 	commandFactory.registerCommand<TurretFireCommand>(String("turretFire").toLowerCase());
-	commandFactory.registerCommand<TurretFireManualCommand>(String("turretFireManual").toLowerCase());
 	commandFactory.registerCommand<UnarmedBlind1Command>(String("unarmedBlind1").toLowerCase());
 	commandFactory.registerCommand<UnarmedBodyHit1Command>(String("unarmedBodyHit1").toLowerCase());
 	commandFactory.registerCommand<UnarmedCombo1Command>(String("unarmedCombo1").toLowerCase());

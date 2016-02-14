@@ -125,6 +125,7 @@ includeFile("events/bestineMuseum.lua")
 includeFile("events/coa2Screenplay.lua")
 includeFile("events/eventPromoter.lua")
 includeFile("events/lifeDay.lua")
+includeFile("events/buffTerminalMenuComponent.lua")
 
 -- Hero of Tatooine
 includeFile("tasks/hero_of_tatooine/conversations/hermitConvoHandler.lua")
@@ -293,6 +294,7 @@ includeFile("caves/tatooine_squill_cave.lua")
 includeFile("caves/tatooine_tusken_bunker.lua")
 
 -- Cities
+includeFile("cities/city.lua")
 includeFile("cities/corellia_bela_vistal.lua")
 includeFile("cities/corellia_coronet.lua")
 includeFile("cities/corellia_doaba_guerfel.lua")

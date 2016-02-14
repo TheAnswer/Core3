@@ -39,12 +39,14 @@ protected:
     int coneAngle;
     int areaRange;
 
+    bool splashDamage;
+
     uint32 animationCRC;
 
     uint64 targetID;
 
     VectorMap<uint8, StateEffect>* stateEffects;
-    VectorMap<uint64, DotEffect>* dotEffects;
+    Vector<DotEffect>* dotEffects;
 
 	uint8 attackType;
 	uint8 trails;
@@ -116,6 +118,14 @@ public:
 		return animationCRC;
 	}
 
+	void setSplashDamage(bool b) {
+		splashDamage = b;
+	}
+
+	bool isSplashDamage() const {
+		return splashDamage;
+	}
+
 	int getAreaRange() const {
 		return areaRange;
 	}
@@ -160,7 +170,7 @@ public:
 		return stateEffects;
 	}
 
-	VectorMap<uint64, DotEffect>* getDotEffects() const {
+	Vector<DotEffect>* getDotEffects() const {
 		return dotEffects;
 	}
 
