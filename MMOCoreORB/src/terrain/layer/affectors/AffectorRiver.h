@@ -9,11 +9,12 @@
 #define AFFECTORRIVER_H_
 
 #include "../ProceduralRule.h"
-#include "../Road.h"
 #include "../Hdta.h"
 
 class Point2D  {
 public:
+	Point2D() { }
+	Point2D(float xPos, float yPos) : x(xPos), y(yPos) { }
 	float x, y;
 
 	inline float getX() {
@@ -27,7 +28,6 @@ public:
 
 
 class AffectorRiver : public ProceduralRule<'ARIV'>, public AffectorProceduralRule {
-	Road road;
 	Hdta hdta;
 
 	int var1;
@@ -85,7 +85,7 @@ public:
 
 		switch (type) {
 		case ('ROAD'):
-			road.readObject(iffStream);
+			hdta.readObject(iffStream);
 			break;
 		case ('HDTA'):
 			hdta.readObject(iffStream);

@@ -25,6 +25,24 @@ public:
 		for (int i = 0; i < sgmts.size(); ++i)
 			delete sgmts.get(i);
 	}
+	
+	Point3D* getPoint(int segment, int index) {
+		sgmts.get(segment)->getPoint(index);
+	}
+	
+	void readObject(engine::util::IffStream* iffStream) {
+		uint32 formType = iffStream->getNextFormType();
+		switch(formType) {
+			case 'HDTA':
+			case 'ROAD':
+				iffStream->openForm(formType);
+				parseFromIffStream(iffStream);
+				iffStream->closeForm(formType);
+				break;
+			default:
+				throw Exception("Incorrect form type " + String::valueOf(formType));
+		}
+	}
 
 	void parseFromIffStream(engine::util::IffStream* iffStream) {
 		uint32 version = iffStream->getNextFormType();
@@ -36,7 +54,7 @@ public:
 			parseFromIffStream(iffStream, Version<'0001'>());
 			break;
 		default:
-			System::out << "unknown Road version " << version << endl;
+			System::out << "unknown HDTA version " << version << endl;
 			break;
 		}
 
@@ -52,6 +70,14 @@ public:
 
 			sgmts.add(sgmt);
 		}
+	}
+	
+	float segmentFind(Vector3 position, int idx) {
+		return sgmts.get(idx)->find(position);
+	}
+	
+	int getNumPoints(int idx) {
+		return sgmts.get(idx)->getNumPoints();
 	}
 
 
