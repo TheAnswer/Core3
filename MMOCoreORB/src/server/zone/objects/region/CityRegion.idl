@@ -25,10 +25,26 @@ include server.zone.objects.region.events.CityUpdateEvent;
 include server.zone.objects.region.events.CitizenAssessmentEvent;
 include server.zone.objects.region.CityStructureInventory;
 include system.thread.atomic.AtomicInteger;
+include pathfinding.RecastNavMesh;
 import system.thread.Mutex;
+import engine.util.u3d.AABB;
+import system.thread.Mutex;
+include system.util.SynchronizedVector;
 
 @lua
 class CityRegion extends ManagedObject implements Logger {
+
+	@dereferenced
+	protected HashSet<SceneObject> cityObjects;
+
+	@dereferenced
+	@rawTemplate(value = "AABB")
+	protected transient SynchronizedVector dirtyNavZones;
+
+	@dereferenced
+	protected transient Mutex navmeshBuilderLock;
+
+	protected RecastNavMesh navmesh;
 
 	protected byte cityRank;
 
@@ -158,6 +174,14 @@ class CityRegion extends ManagedObject implements Logger {
 	public native void initialize();
 	public native void initializeTransientMembers();
 
+	@dirty
+	@local
+	public native void updateNavmesh(@dereferenced final AABB bounds);
+
+	@dirty
+	@local
+	public native void runMeshUpdate();
+
 	/**
 	 * Gets called when this objects is loaded from database
 	 * @pre { this locked }
@@ -178,6 +202,7 @@ class CityRegion extends ManagedObject implements Logger {
 
 	@preLocked
 	public native void destroyActiveAreas();
+
 	@preLocked
 	public native void cancelTasks();
 
@@ -234,6 +259,18 @@ class CityRegion extends ManagedObject implements Logger {
 	@dirty
 	public boolean hasAssessmentPending() {
 		return assessmentPending;
+	}
+
+	@local
+	@dirty
+	public RecastNavMesh getNavMesh() {
+		return navmesh;
+	}
+
+	@local
+	@dirty
+	public void setNavMesh(RecastNavMesh mesh) {
+		navmesh = mesh;
 	}
 
 	@preLocked
