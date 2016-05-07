@@ -15,6 +15,10 @@ class DetailAppearanceTemplate : public AppearanceTemplate {
 	AppearanceTemplate* firstMesh;
 
 public:
+	virtual uint32 getType() {
+		return 'DTAL';
+	}
+	
 	DetailAppearanceTemplate() {
 		firstMesh = NULL;
 	}
@@ -30,6 +34,25 @@ public:
 
 	AppearanceTemplate* getFirstMesh() {
 		return firstMesh;
+	}
+	
+	virtual bool testCollide(const Sphere& testsphere) const {
+		firstMesh->testCollide(testsphere);
+	}
+	
+	/**
+	 * Checks for intersection against ray, stops on any intersection
+	 * @return intersectionDistance, triangle which it intersects
+	 */
+	virtual bool intersects(const Ray& ray, float distance, float& intersectionDistance, Triangle*& triangle, bool checkPrimitives = false) {
+		firstMesh->intersects(ray, distance, intersectionDistance, triangle, checkPrimitives);
+	}
+	
+	/**
+	 * Checks for all intersections
+	 */
+	virtual int intersects(const Ray& ray, float maxDistance, SortedVector<IntersectionResult>& result) {
+		firstMesh->intersects(ray, maxDistance, result);
 	}
 
 };
