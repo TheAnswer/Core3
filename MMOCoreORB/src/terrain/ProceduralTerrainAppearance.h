@@ -86,11 +86,13 @@ public:
 	bool load(engine::util::IffStream* iffStream);
 
 	void parseFromIffStream(engine::util::IffStream* iffStream);
-	void parseFromIffStream(engine::util::IffStream* iffStream, Version<'0014'>);
+	void parseFromIffStream(engine::util::IffStream* iffStream, uint32 version);
 
 	void insertWaterBoundary(Boundary* boundary) {
 		waterBoundaries.add(boundary);
 	}
+	
+	void getWaterBoundariesInAABB(const AABB& bounds, Vector<const Boundary*>* boundariesOut) const;
 
 	/**
 	 * Returns the size of the terrain.
@@ -104,6 +106,9 @@ public:
 	float getHeight(float x, float y);
 	int getEnvironmentID(float x, float y);
 
+	float getGlobalWaterTableHeight() {
+		return globalWaterTableHeight;
+	}
 	ReadWriteLock* getGuard() {
 		return &guard;
 	}
