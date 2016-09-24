@@ -18,7 +18,7 @@ protected:
 public:
 	bool isCompositeVolume() { return true; }
 	CompositeVolume() : bbox(Vector3(0, 0, 0), Vector3(0, 0, 0)){ }
-	const AABB& getBoundingBox() {
+	const AABB& getBoundingBox() const {
 		return bbox;
 	}
 	virtual void read(IffStream *iff);

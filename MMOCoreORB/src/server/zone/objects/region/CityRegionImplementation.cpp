@@ -29,9 +29,11 @@
 #include "templates/tangible/SharedStructureObjectTemplate.h"
 #include "server/zone/Zone.h"
 #include "server/zone/objects/player/sui/messagebox/SuiMessageBox.h"
-
+#include "server/zone/managers/collision/NavMeshManager.h"
 #include "server/zone/objects/creature/commands/QueueCommand.h"
 #include "server/zone/objects/creature/commands/TransferstructureCommand.h"
+#include "server/zone/managers/collision/NavMeshManager.h"
+#include "pathfinding/RecastNavMesh.h"
 
 int BoardShuttleCommand::MAXIMUM_PLAYER_COUNT = 3000;
 
@@ -40,6 +42,22 @@ void CityRegionImplementation::initializeTransientMembers() {
 
 	loaded = false;
 	completeStructureList.setNoDuplicateInsertPlan();
+
+    String meshName = zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh";
+    navmeshRegion = new NavmeshRegion(meshName);
+    zone->getPlanetManager()->addNavMesh(navmeshRegion);
+
+	if (zone) {
+        RecastNavMesh *mesh = navmeshRegion->getNavMesh();
+		if(mesh == NULL || !mesh->isLoaded()) {
+			rescheduleUpdateEvent(30);
+		} else {
+
+		}
+		
+	} else {
+		rescheduleUpdateEvent(30);
+	}
 }
 
 void CityRegionImplementation::notifyLoadFromDatabase() {
@@ -98,6 +116,26 @@ void CityRegionImplementation::initialize() {
 
 }
 
+void CityRegionImplementation::updateNavmesh(const AABB& bounds) {
+    if (navmeshRegion == NULL) {
+        navmeshRegion = new NavmeshRegion(zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh");
+    }
+    RecastNavMesh *navmesh = navmeshRegion->getNavMesh();
+    if (navmesh == NULL || !navmesh->isLoaded()) {
+        float x = getPositionX();
+        float y = getPositionY();
+        float z = zone->getHeight(x, y);
+        const Vector3 center(x, z, -y);
+        const Vector3 radius(480.0f, 480.0f, 480.0f);
+        navmeshRegion->meshBounds = Sphere(center, 480.0f);
+        NavMeshManager::instance()->enqueueJob(zone, navmeshRegion, AABB(center-radius, center+radius));
+    } else {
+        NavMeshManager::instance()->enqueueJob(zone, navmeshRegion, bounds);
+    }
+
+
+}
+
 Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool persistent) {
 	if (zone == NULL) {
 		return NULL;
@@ -117,7 +155,7 @@ Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool
 	region->setRadius(radius);
 	region->initializePosition(x, 0, y);
 	region->setObjectName(regionName, false);
-
+	
 	if (isClientRegion())
 		region->setNoBuildArea(true);
 
@@ -166,6 +204,8 @@ void CityRegionImplementation::notifyEnter(SceneObject* object) {
 		currentPlayers.increment();
 
 	object->setCityRegion(_this.getReferenceUnsafeStaticCast());
+	
+	
 
 	if (object->isBazaarTerminal() || object->isVendor()) {
 
@@ -181,8 +221,31 @@ void CityRegionImplementation::notifyEnter(SceneObject* object) {
 			terminalData->updateUID();
 	}
 
-	if (isClientRegion())
+	if (isClientRegion()) {
+		cityObjects.add(object);
 		return;
+	}
+	
+	if(!cityObjects.contains(object) && object->isStructureObject() && !object->getObjectTemplate()->getTemplateFileName().contains("construction_")) {
+		
+		info(object->getObjectTemplate()->getTemplateFileName() + " caused navmesh rebuild", true);
+		Vector3 position = object->getWorldPosition();
+		const BaseBoundingVolume *volume = object->getBoundingVolume();
+		const SharedStructureObjectTemplate *stemp = dynamic_cast<SharedStructureObjectTemplate*>(object->getObjectTemplate());
+		
+		StructureFootprint* structureFootprint = stemp->getStructureFootprint();
+		if(volume) {
+			AABB bbox = volume->getBoundingBox();
+			info("Rebuilding from structure extents :\n" + bbox.getMinBound()->toString() + ", " + bbox.getMaxBound()->toString(), true);
+			bbox = AABB(position-(bbox.extents()), position+(bbox.extents()));
+			info("Rebuilding from structure extents :\n" + bbox.getMinBound()->toString() + ", " + bbox.getMaxBound()->toString(), true);
+			Core::getTaskManager()->scheduleTask([=]{
+				updateNavmesh(bbox);
+			}, "updateCityNavmesh", 5000);
+		}
+	}
+	
+	cityObjects.add(object);
 
 	if (object->isCreatureObject()) {
 		CreatureObject* creature = cast<CreatureObject*>(object);
@@ -291,8 +354,31 @@ void CityRegionImplementation::notifyExit(SceneObject* object) {
 	if (object->isPlayerCreature())
 		currentPlayers.decrement();
 
-	if (isClientRegion())
+	if (isClientRegion()) {
+		cityObjects.add(object);
 		return;
+	}
+	
+	if(cityObjects.contains(object) && object->isStructureObject() && !object->getObjectTemplate()->getTemplateFileName().contains("construction_")) {
+		
+		info(object->getObjectTemplate()->getTemplateFileName() + " caused navmesh rebuild", true);
+		Vector3 position = object->getWorldPosition();
+		const BaseBoundingVolume *volume = object->getBoundingVolume();
+		const SharedStructureObjectTemplate *stemp = dynamic_cast<SharedStructureObjectTemplate*>(object->getObjectTemplate());
+		
+		StructureFootprint* structureFootprint = stemp->getStructureFootprint();
+		if(volume) {
+			AABB bbox = volume->getBoundingBox();
+			info("Rebuilding from structure extents :\n" + bbox.getMinBound()->toString() + ", " + bbox.getMaxBound()->toString(), true);
+			bbox = AABB(position-(bbox.extents()), position+(bbox.extents()));
+			info("Rebuilding from structure extents :\n" + bbox.getMinBound()->toString() + ", " + bbox.getMaxBound()->toString(), true);
+			Core::getTaskManager()->scheduleTask([=]{
+				updateNavmesh(bbox);
+			}, "updateCityNavmesh", 5000);
+		}
+	}
+	
+	cityObjects.add(object);
 
 	if (object->isCreatureObject()) {
 

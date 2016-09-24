@@ -19,14 +19,23 @@
 #ifndef RECASTSAMPLETILEMESH_H
 #define RECASTSAMPLETILEMESH_H
 #include "engine/engine.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/Recast.h"
 #include "terrain/layer/boundaries/BoundaryPolygon.h"
 #include "RecastPolygon.h"
+#include "server/zone/Zone.h"
+#include "terrain/manager/TerrainManager.h"
+#include "pathfinding/RecastTileBuilder.h"
 
+class RecastNavMesh;
 class MeshData;
-class dtNavMeshQuery;
 class BoundaryPolygon;
+namespace server {
+	namespace zone {
+		class Zone;
+	}
+}
+
 
 class RecastNavMeshBuilder : public Logger
 {
@@ -34,21 +43,9 @@ protected:
 	bool m_keepInterResults;
 	bool m_buildAll;
 	float m_totalBuildTimeMs;
-	float m_cellHeight;
-	float m_agentHeight;
-	float m_agentRadius;
-	float m_agentMaxClimb;
-	float m_agentMaxSlope;
-	float m_regionMinSize;
-	float m_regionMergeSize;
-	float m_edgeMaxLen;
-	float m_edgeMaxError;
-	float m_vertsPerPoly;
-	float m_detailSampleDist;
-	float m_detailSampleMaxError;
-	int m_partitionType;
+
 	rcContext* m_ctx;
-	
+	RecastSettings settings;
 	unsigned char* m_triareas;
 	rcHeightfield* m_solid;
 	rcCompactHeightfield* m_chf;
@@ -60,36 +57,37 @@ protected:
 	
 	int m_maxTiles;
 	int m_maxPolysPerTile;
-	float m_tileSize;
-	float m_cellSize;
+	Zone *zone;
 	Reference<MeshData*> m_geom;
 	AABB bounds;
 	AABB lastTileBounds;
-	dtNavMeshQuery* m_navQuery;
 	int m_tileTriCount;
-	
+	String name;
 	unsigned char* buildTileMesh(const int tx, const int ty, int& dataSize);
 	
 	void cleanup();
 	Vector<Reference<RecastPolygon*> > water;
 	
 	float waterTableHeight;
+	bool destroyMesh;
 public:
+	void initialize(Vector<Reference<MeshData*> > meshData, AABB bounds, float distanceBetweenHeights=2);
+	
+	static Reference<MeshData*> flattenMeshData(Vector<Reference<MeshData*> >& data);
+	static void dumpOBJ(String filename, Vector<Reference<MeshData*> > data);
+	static Reference<MeshData*> getTerrainMesh(Vector3& position, float terrainSize, TerrainManager* terrainManager, float chunkSize, float distanceBetweenHeights);
 	
 	void saveAll(const String& file);
-	RecastNavMeshBuilder(float waterTableHeight, String name);
+	RecastNavMeshBuilder(Zone* zone, String name);
 	virtual ~RecastNavMeshBuilder();
-//	
-//	virtual void handleSettings();
-//	virtual void handleTools();
-//	virtual void handleDebugMode();
-//	virtual void handleRender();
-//	virtual void handleRenderOverlay(double* proj, double* model, int* view);
+
 	virtual void changeMesh(MeshData* geom);
 	inline void addWater(Reference<RecastPolygon*> waterBoundary) {
 		water.add(waterBoundary);
 	}
 	virtual bool build();
+	
+	virtual bool rebuildArea(AABB area, RecastNavMesh* existingMesh);
 	//virtual void collectSettings(struct BuildSettings& settings);
 	
 	void getTilePos(const Vector3& pos, int& tx, int& ty);
@@ -100,6 +98,11 @@ public:
 	void removeAllTiles();
 	
 	void buildAllTiles();
+	void buildAllTiles(AABB areaToRebuild);
+	
+	RecastSettings& getRecastConfig() {
+		return settings;
+	}
 	
 private:
 	// Explicitly disabled copy constructor and copy assignment operator.

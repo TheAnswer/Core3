@@ -734,6 +734,18 @@ void CityManagerImplementation::processCityUpdate(CityRegion* city) {
 		destroyCity(city);
 		return;
 	}
+	
+	if (!city->isClientRegion() && city->getNavMesh() == NULL) {
+		Vector3 center(city->getPositionX(), 0, city->getPositionY());
+		Vector3 radius(470, 0, 470);
+		if(city->isClientRegion()) {
+			radius = Vector3(city->getRadius(), 0, city->getRadius());
+		}
+
+		AABB box = AABB(center-radius, center+radius);
+
+		city->updateNavmesh(box);
+	}
 
 	int cityRank = 0;
 	float radius = 0;
@@ -757,6 +769,8 @@ void CityManagerImplementation::processCityUpdate(CityRegion* city) {
 				ghost->addExperience("political", 750, true);
 			}
 		}
+		
+
 
 		updateCityVoting(city);
 

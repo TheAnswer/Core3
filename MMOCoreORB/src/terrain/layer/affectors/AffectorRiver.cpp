@@ -8,12 +8,26 @@
 #include "AffectorRiver.h"
 #include "../../TerrainGenerator.h"
 
+
+AffectorRiver::AffectorRiver() : var1(0), width(0), var3(0), var4(0), var5(0), featheringAmount(0), var7(0), var8(0),
+var9(0), var10(0), var11(0), var12(0) {
+	mfrc = new MapFractal();
+	mfrc->setGainValue(0.9f);
+	mfrc->setOctavesParam(3);
+}
+
+AffectorRiver::~AffectorRiver() {
+	for (int i = 0; i < positions.size(); ++i)
+		delete positions.get(i);
+	
+	delete mfrc;
+}
+
+
 void AffectorRiver::process(float x, float y, float transformValue, float& baseValue, TerrainGenerator* terrainGenerator) {
 	info("Process: " + String::valueOf(x) + " , " + String::valueOf(y), true);
 	if (mfrc == NULL) {
-		mfrc = terrainGenerator->getMfrc(0);
-		mfrc->setGainValue(0.9f);
-		mfrc->setOctavesParam(3);
+
 	}
 	//
 	
@@ -26,6 +40,7 @@ void AffectorRiver::process(float x, float y, float transformValue, float& baseV
 			
 			//FindData result;
 			float resultDistanceToCenter, resultHeight, distanceAlongPath;
+			distanceAlongPath = 0;
 			if (getHeight (x, y, width_2, resultDistanceToCenter, resultHeight, distanceAlongPath)) {
 				const float distanceToCenter = fabsf (resultDistanceToCenter);
 				const float desiredHeight    = resultHeight;
