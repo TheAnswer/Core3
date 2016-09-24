@@ -6,10 +6,10 @@
  */
 
 #include "RecastNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/Recast.h"
 
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
 
 
 
@@ -31,17 +31,19 @@ struct NavMeshTileHeader
 };
 
 RecastNavMesh::RecastNavMesh(String filename) : Logger("RecastNavMesh") {
-	
+	navMesh = NULL;
+	loadAll(filename);
 }
 
 void RecastNavMesh::loadAll(String filename)
 {
 	File file(filename);
-	
-	if (!file.exists())
-		return;
-	
 	FileInputStream stream(&file);
+	
+	if (!file.exists()) {
+		info("File does not exist " + filename, true);
+		return;
+	}
 	
 	// Read header.
 	NavMeshSetHeader header;

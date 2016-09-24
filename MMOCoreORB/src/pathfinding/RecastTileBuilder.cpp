@@ -17,10 +17,10 @@
 //
 
 #include "RecastTileBuilder.h"
-#include "recast/Recast.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
-#include "recast/DetourNavMeshQuery.h"
+#include "pathfinding/recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMeshQuery.h"
 #include "templates/appearance/MeshData.h"
 #include "ChunkyTriMesh.h"
 

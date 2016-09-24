@@ -19,10 +19,10 @@
 #include "RecastNavMeshBuilder.h"
 #include "RecastTileBuilder.h"
 
-#include "recast/Recast.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
-#include "recast/DetourNavMeshQuery.h"
+#include "pathfinding/recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMeshQuery.h"
 #include "templates/appearance/MeshData.h"
 #include "ChunkyTriMesh.h"
 
@@ -429,16 +429,20 @@ void RecastNavMeshBuilder::buildAllTiles()
 	AtomicInteger jobStatus;
 	AtomicInteger progress;
 	
+	delete[] tris;
+	delete[] verts;
+	
 	
 	for (int y = 0; y < th; ++y)
 	{
-//		while(threadLimiter.get() > 8)
-//			Thread::sleep(1000);
-//		
-//		threadLimiter.increment();
 		
+		threadLimiter.increment();
+//		while (threadLimiter.get() > 3)
+//			Thread::sleep(500);
+//		
 		jobStatus.increment();
-		Core::getTaskManager()->executeTask([=, &jobStatus, &progress]{
+		//Core::getTaskManager()->executeTask([=, &jobStatus, &progress]{
+			try {
 			RecastTileBuilder builder(waterTableHeight, 0, y, lastTileBounds, chunkyMesh);
 			
 			builder.changeMesh(m_geom);
@@ -464,8 +468,12 @@ void RecastNavMeshBuilder::buildAllTiles()
 					m_navMesh->removeTile(m_navMesh->getTileRefAt(x,y,0),0,0);
 					// Let the navmesh own the data.
 					dtStatus status = m_navMesh->addTile(data,dataSize,DT_TILE_FREE_DATA,0,0);
-					if (dtStatusFailed(status))
+					if (dtStatusFailed(status)) {
+						info("dtStatusFailed", true);
 						dtFree(data);
+					}
+				} else {
+					info("No data", true);
 				}
 				
 				
@@ -473,14 +481,13 @@ void RecastNavMeshBuilder::buildAllTiles()
 			jobStatus.decrement();
 			progress.add(tw);
 			
-			//threadLimiter.decrement();
+			threadLimiter.decrement();
 			info("Generating tiles: " + String::valueOf(progress.get()*100 / (th*tw)) +"% complete", true);
-		}, "threadStuff");
+			} catch (Exception e) {
+				info("Thread Exception", true);
+			}
+		//}, "threadStuff");
 	}
-
-
-	while(jobStatus.get())
-		Thread::sleep(500);
 
 //	// Start the build process.
 //	m_ctx->stopTimer(RC_TIMER_TEMP);
@@ -645,9 +652,12 @@ unsigned char* RecastNavMeshBuilder::buildTileMesh(const int tx, const int ty, i
 		tris[i*3+2] = indicies[2];
 	}
 	rcMarkWalkableTriangles(m_ctx, m_cfg.walkableSlopeAngle, verts, nverts, tris, triangles->size(), m_triareas);
-	if (!rcRasterizeTriangles(m_ctx, verts, nverts, tris, m_triareas, triangles->size(), *m_solid, m_cfg.walkableClimb))
+	if (!rcRasterizeTriangles(m_ctx, verts, nverts, tris, m_triareas, triangles->size(), *m_solid, m_cfg.walkableClimb)) {
+		delete[] verts;
+		delete[] m_triareas;
 		return 0;
-	
+	}
+	delete[] verts;
 	delete triangles;
 	delete[] m_triareas;
 	m_triareas = 0;
@@ -903,7 +913,6 @@ unsigned char* RecastNavMeshBuilder::buildTileMesh(const int tx, const int ty, i
 	//m_ctx->log(RC_LOG_PROGRESS, ">> Polymesh: %d vertices  %d polygons", m_pmesh->nverts, m_pmesh->npolys);
 	
 	//m_tileBuildTime = m_ctx->getAccumulatedTime(RC_TIMER_TOTAL)/1000.0f;
-	delete[] verts;
 	
 	dataSize = navDataSize;
 	return navData;
