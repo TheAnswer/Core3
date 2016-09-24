@@ -219,6 +219,8 @@ CityRegion* CityManagerImplementation::createCity(CreatureObject* mayor, const S
 	chatManager->sendMail("@city/city:new_city_from", subject, params, mayor->getFirstName(), NULL);
 
 	cities.put(cityName, city);
+	
+	city->createInitialNavmesh();
 
 	return city;
 }
@@ -784,6 +786,10 @@ void CityManagerImplementation::processCityUpdate(CityRegion* city) {
 		processIncomeTax(city);
 
 		deductCityMaintenance(city);
+		
+		if (!city->getNavMesh() && !city->isClientRegion()) {
+			city->createInitialNavmesh();
+		}
 
 	} catch (Exception& e) {
 		error(e.getMessage() + "in CityManagerImplementation::processCityUpdate");

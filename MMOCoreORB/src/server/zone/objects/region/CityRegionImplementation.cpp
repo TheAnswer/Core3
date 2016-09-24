@@ -32,6 +32,7 @@
 
 #include "server/zone/objects/creature/commands/QueueCommand.h"
 #include "server/zone/objects/creature/commands/TransferstructureCommand.h"
+#include "pathfinding/RecastNavMeshBuilder.h"
 
 int BoardShuttleCommand::MAXIMUM_PLAYER_COUNT = 3000;
 
@@ -40,6 +41,12 @@ void CityRegionImplementation::initializeTransientMembers() {
 
 	loaded = false;
 	completeStructureList.setNoDuplicateInsertPlan();
+	
+	navmesh = new RecastNavMesh(zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh");
+	if(!navmesh->isLoaded()) {
+		navmesh = NULL;
+		rescheduleUpdateEvent(30);
+	}
 }
 
 void CityRegionImplementation::notifyLoadFromDatabase() {
@@ -98,6 +105,50 @@ void CityRegionImplementation::initialize() {
 
 }
 
+void CityRegionImplementation::createInitialNavmesh() {
+	
+	if(isClientRegion())
+		return;
+	
+	Zone *zone = getZone();
+	if (!zone) {
+		rescheduleUpdateEvent(60);
+		return;
+	}
+	
+	float range = getRadius();
+	String filename = zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh";
+	
+	SortedVector<ManagedReference<QuadTreeEntry*> > closeObjects;
+	zone->getInRangeSolidObjects(getPositionX(), getPositionY(), range, &closeObjects, true);
+	Matrix4 identity;
+	
+	Vector<Reference<MeshData*> > meshData;
+	
+	for (int i=0; i<closeObjects.size(); i++) {
+		SceneObject *sceno = closeObjects.get(i).castTo<SceneObject*>();
+		if(sceno)
+			meshData.addAll(sceno->getTransformedMeshData(&identity));
+	}
+	
+	
+	
+	RecastNavMeshBuilder *builder = new RecastNavMeshBuilder(meshData, zone, filename);
+	builder->setDistanceBetweenHeights(2);
+	builder->setCellSize(0.2f);
+	builder->setCellHeight(0.2f);
+	builder->setMaxError(5.0f);
+	
+	Vector3 center(getPositionX(), 0, getPositionY());
+	Vector3 radius(450, 0, 450);
+	AABB box(center-radius, center+radius);
+	
+	builder->build(box); // This will take a very long time to complete
+	builder->saveAll(filename);
+	
+	delete builder;
+}
+
 Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool persistent) {
 	if (zone == NULL) {
 		return NULL;
@@ -117,7 +168,7 @@ Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool
 	region->setRadius(radius);
 	region->initializePosition(x, 0, y);
 	region->setObjectName(regionName, false);
-
+	
 	if (isClientRegion())
 		region->setNoBuildArea(true);
 

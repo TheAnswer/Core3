@@ -37,6 +37,8 @@ import server.zone.objects.area.ActiveArea;
 import system.thread.Mutex;
 import engine.util.u3d.CloseObjectsVector;
 include server.zone.managers.collision.IntersectionResults;
+include server.zone.objects.pathfinding.NavmeshRegion;
+include templates.appearance.MeshData;
 
 class PlanetManager extends ManagedService implements Logger {
 	protected Zone zone;
@@ -82,6 +84,17 @@ class PlanetManager extends ManagedService implements Logger {
 	@dereferenced
 	protected static transient Mutex poiMutex;
 
+	@dereferenced
+	protected transient Vector<Reference<NavmeshRegion> > navmeshes;
+	@dereferenced
+	protected transient VectorMap<string, Reference<NavmeshRegion> > navmeshesToBuild;
+
+	@local
+	public native Reference<MeshData> flattenMeshData(@dereferenced Vector<Reference<MeshData> > data);
+
+	@local
+	protected native Reference<MeshData> getTerrainMesh(@dereferenced Vector3 pos, float terrainSize, float chunkSize, float distanceBetweenHeights);
+
 	public PlanetManager(Zone planet, ZoneProcessServer srv) {
 		zone = planet;
 		server = srv;
@@ -117,6 +130,10 @@ class PlanetManager extends ManagedService implements Logger {
 	}
 
 	@local
+	@dereferenced
+	public native Vector<Reference<NavmeshRegion> > getNavMeshes();
+
+	@local
 	@reference
 	private native SceneObject loadSnapshotObject(WorldSnapshotNode node, WorldSnapshotIff wsiff, @dereferenced int totalObjects);
 	private native void loadSnapshotObjects();
@@ -138,6 +155,8 @@ class PlanetManager extends ManagedService implements Logger {
 	public native void loadClientRegions();
 	public native void loadClientPoiData();
 	public native void start();
+
+
 
 	/**
 	 * Returns the closest PlanetTravelPoint within the given range.
