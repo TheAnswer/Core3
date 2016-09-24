@@ -36,7 +36,7 @@ public:
 	~RecastPolygon() {
 		delete[] verts;
 	}
-	RecastPolygon(const RecastPolygon& rhs) {
+	RecastPolygon(const RecastPolygon& rhs) : Object(rhs) {
 		*this = rhs;
 	}
 	
