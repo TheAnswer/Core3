@@ -17,20 +17,20 @@ class AppearanceTemplate;
 class FloorMesh;
 
 class CellPortal : public Object {
-	bool passable;
+	bool solid;
 	int geometryIndex;
 	bool winding;
 	int targetCell;
 	String doorName;
-	bool bHasDoorTransform;
+	bool transformFlag;
 	Matrix4 doorTransform;
 public:
 	
 	void readObject(IffStream *iff);
 	void load_0004(IffStream *iff);
 	
-	bool isPassable() {
-		return passable;
+	bool isSolid() {
+		return solid;
 	}
 	
 	int getGeometryIndex() {
@@ -54,7 +54,7 @@ public:
 	}
 	
 	bool hasDoorTransform() {
-		return bHasDoorTransform;
+		return transformFlag;
 	}
 	
 	const Matrix4& getDoorTransform() {
@@ -66,7 +66,6 @@ public:
 class CellProperty : public IffTemplate, public Logger {
 protected:
 	String name;
-	bool canSeeParentCell;
 	int numberOfPortals;
 	FloorMesh* floorMesh;
 	AppearanceTemplate* appearanceTemplate;
@@ -85,10 +84,6 @@ public:
 
 	AppearanceTemplate* getAppearanceTemplate() {
 		return appearanceTemplate;
-	}
-
-	bool isCanSeeParentCell() const {
-		return canSeeParentCell;
 	}
 
 	FloorMesh* getFloorMesh() {
