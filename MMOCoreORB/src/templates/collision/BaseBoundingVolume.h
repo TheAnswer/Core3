@@ -9,22 +9,13 @@
 #define BASEBOUNDINGVOLUME_H_
 
 #include "engine/engine.h"
-#include <osg/Node>
-#include <osg/Geometry>
-#include <osg/Notify>
-#include <osg/MatrixTransform>
-#include <osg/Texture2D>
-#include <osgViewer/Viewer>
-#include <osg/Shape>
-#include <osg/ShapeDrawable>
-#include <osgGA/StateSetManipulator>
 
 class BaseBoundingVolume : public Logger {
 protected:
 	Sphere bsphere; // All volumes have an enclosing sphere
 public:
 	BaseBoundingVolume() : bsphere(Vector3(0, 0, 0), 0) { }
-	virtual const AABB& getBoundingBox() = 0;
+	virtual const AABB& getBoundingBox() const = 0;
 	virtual const Sphere& getBoundingSphere() {
 		return bsphere;
 	}
