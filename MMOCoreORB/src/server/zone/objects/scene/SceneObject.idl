@@ -59,7 +59,7 @@ import system.thread.Mutex;
 include server.zone.objects.scene.variables.ContainerObjectsMap;
 import server.zone.objects.tangible.TangibleObject;
 import server.zone.objects.creature.ai.AiAgent;
-
+include templates.appearance.MeshData;
 @mock
 class SceneObject extends QuadTreeEntry implements Logger {
 	protected transient ZoneProcessServer server;
@@ -2009,5 +2009,12 @@ class SceneObject extends QuadTreeEntry implements Logger {
 	public native boolean isDataPad();
 
 	public native abstract float getTemplateRadius();
+
+	@local
+	@dereferenced
+	public native abstract Matrix4 getRecastTransform();
+	@local
+	@dereferenced
+	public native abstract Vector<Reference<MeshData> > getTransformedMeshData(Matrix4 parentTransform);
 }
 

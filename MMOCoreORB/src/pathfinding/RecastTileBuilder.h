@@ -16,20 +16,21 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
-#ifndef RECASTSAMPLETILEMESH_H
-#define RECASTSAMPLETILEMESH_H
+#ifndef RECASTTILEBUILDER_H_
+#define RECASTTILEBUILDER_H_
 #include "engine/engine.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/Recast.h"
 #include "terrain/layer/boundaries/BoundaryPolygon.h"
 #include "RecastPolygon.h"
-
 class MeshData;
 class dtNavMeshQuery;
 class BoundaryPolygon;
+struct rcChunkyTriMesh;
 
-class RecastNavMeshBuilder : public Logger
+class RecastTileBuilder : public Logger
 {
+
 protected:
 	bool m_keepInterResults;
 	bool m_buildAll;
@@ -48,6 +49,7 @@ protected:
 	float m_detailSampleMaxError;
 	int m_partitionType;
 	rcContext* m_ctx;
+	const rcChunkyTriMesh* chunkyMesh;
 	
 	unsigned char* m_triareas;
 	rcHeightfield* m_solid;
@@ -64,7 +66,7 @@ protected:
 	float m_cellSize;
 	Reference<MeshData*> m_geom;
 	AABB bounds;
-	AABB lastTileBounds;
+	
 	dtNavMeshQuery* m_navQuery;
 	int m_tileTriCount;
 	
@@ -73,39 +75,34 @@ protected:
 	void cleanup();
 	Vector<Reference<RecastPolygon*> > water;
 	
-	float waterTableHeight;
-public:
+	//void buildTile(const Vector3& pos);
+	void getTilePos(const Vector3& pos, int& tx, int& ty);
 	
+	float waterTableHeight;
+	float tileX, tileY;
+public:
+	AABB lastTileBounds;
 	void saveAll(const String& file);
-	RecastNavMeshBuilder(float waterTableHeight, String name);
-	virtual ~RecastNavMeshBuilder();
-//	
-//	virtual void handleSettings();
-//	virtual void handleTools();
-//	virtual void handleDebugMode();
-//	virtual void handleRender();
-//	virtual void handleRenderOverlay(double* proj, double* model, int* view);
+	
+	RecastTileBuilder(float waterTableHeight, float x, float y, const AABB& bounds, const rcChunkyTriMesh* mesh);
+	
+	virtual ~RecastTileBuilder();
+	
 	virtual void changeMesh(MeshData* geom);
+	
 	inline void addWater(Reference<RecastPolygon*> waterBoundary) {
 		water.add(waterBoundary);
 	}
-	virtual bool build();
-	//virtual void collectSettings(struct BuildSettings& settings);
+	virtual unsigned char* build(float x, float y, const AABB& tileBounds, int& dataSize);
 	
-	void getTilePos(const Vector3& pos, int& tx, int& ty);
 	
-	void buildTile(const Vector3& pos);
-	void removeTile(const Vector3& pos);
 	
-	void removeAllTiles();
-	
-	void buildAllTiles();
-	
+	//
 private:
 	// Explicitly disabled copy constructor and copy assignment operator.
-	RecastNavMeshBuilder(const RecastNavMeshBuilder&);
-	RecastNavMeshBuilder& operator=(const RecastNavMeshBuilder&);
+	RecastTileBuilder(const RecastTileBuilder&);
+	RecastTileBuilder& operator=(const RecastTileBuilder&);
 };
 
 
-#endif // RECASTSAMPLETILEMESH_H
+#endif // RECASTTILEBUILDER_H_

@@ -11,7 +11,7 @@
 #include "server/zone/objects/cell/CellObject.h"
 #include "server/zone/objects/creature/CreatureObject.h"
 #include "server/zone/objects/structure/StructureObject.h"
-
+#include "templates/appearance/AppearanceTemplate.h"
 #include "templates/building/SharedBuildingObjectTemplate.h"
 #include "templates/appearance/PortalLayout.h"
 #include "templates/appearance/FloorMesh.h"
@@ -1663,4 +1663,11 @@ BuildingObject* BuildingObject::asBuildingObject() {
 
 BuildingObject* BuildingObjectImplementation::asBuildingObject() {
 	return _this.getReferenceUnsafeStaticCast();
+}
+
+Vector<Reference<MeshData*> > BuildingObjectImplementation::getTransformedMeshData(Matrix4* parentTransform) {
+	Vector<Reference<MeshData*> > data;
+
+	
+	return data;
 }

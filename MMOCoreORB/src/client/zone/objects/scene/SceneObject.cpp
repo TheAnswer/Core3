@@ -68,10 +68,6 @@ Vector<Reference<MeshData*> > SceneObject::getTransformedMeshData(const Matrix4&
 	}
 
 	Vector<Reference<MeshData*> > meshes = templateObject->getAppearanceTemplate()->getTransformedMeshData(getMatrix4Transform() * parentTransform );
-//	for(int i=0; i<meshes.size(); i++) {
-//		Matrix4 transform = getMatrix4Transform();
-//		meshes.get(i)->transformMeshData(transform);
-//	}
 	
 	return meshes;
 }
