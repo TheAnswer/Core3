@@ -6,10 +6,10 @@
  */
 
 #include "RecastNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/Recast.h"
 
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
 
 
 
