@@ -9,15 +9,6 @@
 #define BASEBOUNDINGVOLUME_H_
 
 #include "engine/engine.h"
-#include <osg/Node>
-#include <osg/Geometry>
-#include <osg/Notify>
-#include <osg/MatrixTransform>
-#include <osg/Texture2D>
-#include <osgViewer/Viewer>
-#include <osg/Shape>
-#include <osg/ShapeDrawable>
-#include <osgGA/StateSetManipulator>
 
 class BaseBoundingVolume : public Logger {
 protected:
