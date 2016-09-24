@@ -12,6 +12,9 @@
 #include "templates/appearance/PortalLayout.h"
 #include "templates/appearance/FloorMesh.h"
 #include "templates/appearance/PathGraph.h"
+#include "server/zone/Zone.h"
+#include "server/zone/managers/planet/PlanetManager.h"
+
 #include "CollisionManager.h"
 #include "engine/util/u3d/Funnel.h"
 #include "server/zone/objects/area/ActiveArea.h"
@@ -21,11 +24,20 @@
 
 PathFinderManager::PathFinderManager() : Logger("PathFinderManager") {
 	setFileLogger("log/pathfinder.log");
+	
+	m_filter.setIncludeFlags(SAMPLE_POLYFLAGS_ALL ^ SAMPLE_POLYFLAGS_DISABLED);
+	m_filter.setExcludeFlags(0);
+	m_filter.setAreaCost(SAMPLE_POLYAREA_GROUND, 1.0f);
+	m_filter.setAreaCost(SAMPLE_POLYAREA_WATER, 15.0f);
+	m_filter.setAreaCost(SAMPLE_POLYAREA_ROAD, 1.0f);
+	m_filter.setAreaCost(SAMPLE_POLYAREA_DOOR, 1.0f);
+	m_filter.setAreaCost(SAMPLE_POLYAREA_GRASS, 2.0f);
+	m_filter.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.5f);
 
 	setLogging(true);
 }
 
-Vector<WorldCoordinates>* PathFinderManager::findPath(const WorldCoordinates& pointA, const WorldCoordinates& pointB) {
+Vector<WorldCoordinates>* PathFinderManager::findPath(const WorldCoordinates& pointA, const WorldCoordinates& pointB, Zone *zone) {
 	if (std::isnan(pointA.getX()) || std::isnan(pointA.getY()) || std::isnan(pointA.getZ()))
 		return NULL;
 
@@ -36,11 +48,11 @@ Vector<WorldCoordinates>* PathFinderManager::findPath(const WorldCoordinates& po
 	CellObject* cellB = pointB.getCell();
 
 	if (cellA == NULL && cellB == NULL) { // world -> world
-		return findPathFromWorldToWorld(pointA, pointB);
+		return findPathFromWorldToWorld(pointA, pointB, zone);
 	} else if (cellA != NULL && cellB == NULL) { // cell -> world
-		return findPathFromCellToWorld(pointA, pointB);
+		return findPathFromCellToWorld(pointA, pointB, zone);
 	} else if (cellA == NULL && cellB != NULL) { // world -> cell
-		return findPathFromWorldToCell(pointA, pointB);
+		return findPathFromWorldToCell(pointA, pointB, zone);
 	} else /* if (cellA != NULL && cellB != NULL) */ { // cell -> cell, the only left option
 		return findPathFromCellToCell(pointA, pointB);
 	}
@@ -91,17 +103,92 @@ void PathFinderManager::filterPastPoints(Vector<WorldCoordinates>* path, SceneOb
     }
 }
 
-Vector<WorldCoordinates>* PathFinderManager::findPathFromWorldToWorld(const WorldCoordinates& pointA, const WorldCoordinates& pointB) {
+bool pointInSphere(const Vector3 &point, const Sphere& sphere) {
+	return (point-sphere.getCenter()).length() < sphere.getRadius();
+}
+
+static AtomicLong totalTime;
+
+Vector<WorldCoordinates>* PathFinderManager::findPathFromWorldToWorld(const WorldCoordinates& pointA, const WorldCoordinates& pointB, Zone* zone) {
 	//we dont have path nodes in the world yet returning straight line
 
-	Vector<WorldCoordinates>* path = new Vector<WorldCoordinates>(2, 1);
+	Vector<WorldCoordinates>* path = new Vector<WorldCoordinates>();
 	path->add(pointA);
+	
+	
+	const Vector3& startTemp = pointA.getPoint();
+	const Vector3& targetTemp = pointB.getPoint();
+	const Vector3 startPosition(startTemp.getX(), startTemp.getZ(), -startTemp.getY());
+	const Vector3 targetPosition(targetTemp.getX(), targetTemp.getZ(), -targetTemp.getY());
+	const float* startPosAsFloat = startPosition.toFloatArray();
+	const float* tarPosAsFloat = targetPosition.toFloatArray();
+	
+	float extents[3] = {25, 25, 25};
+	dtPolyRef startPoly;
+	dtPolyRef endPoly;
+	
+	Timer t;
+	t.start();
+	Vector<Reference<NavmeshRegion*> > regions = zone->getPlanetManager()->getNavMeshes();
+	for (int i=0; i<regions.size(); i++) {
+		Reference<NavmeshRegion*> region = regions.get(i);
+		const Sphere& sphere = region->meshBounds;
+		if (pointInSphere(targetPosition, sphere) || pointInSphere(startPosition, sphere)) {
+			dtNavMeshQuery *query = m_navQuery.get();
+			if(query == NULL) {
+				query = dtAllocNavMeshQuery();
+				query->init(region->getNavMesh()->getNavMesh(), 2048);
+				m_navQuery.set(query);
+			}
+
+			Vector3 polyStart;
+			Vector3 polyEnd;
+			int numPolys;
+			dtPolyRef polyPath[2048];
+			
+			query->findNearestPoly(startPosAsFloat, extents, &m_filter, &startPoly, polyStart.toFloatArray());
+			query->findNearestPoly(tarPosAsFloat, extents, &m_filter, &endPoly, polyEnd.toFloatArray());
+			
+			
+			query->findPath(startPoly, endPoly, polyStart.toFloatArray(), polyEnd.toFloatArray(), &m_filter, polyPath, &numPolys, 2048);
+			
+			if (numPolys)
+			{
+				// In case of partial path, make sure the end point is clamped to the last polygon.
+				float epos[3];
+				dtVcopy(epos, polyEnd.toFloatArray());
+				if (polyPath[numPolys-1] != endPoly)
+					query->closestPointOnPoly(polyPath[numPolys-1], tarPosAsFloat, polyEnd.toFloatArray(), 0);
+				
+				unsigned char flags[128];
+				float pathPoints[128][3];
+				int numPoints = 0;
+				
+				query->findStraightPath(polyStart.toFloatArray(), polyEnd.toFloatArray(),
+											 polyPath, numPolys,
+											 (float*)pathPoints, NULL, NULL,
+											 &numPoints, 128, 0);
+				
+				for (int i=0; i < numPoints; i++) {
+					//info("PathFind Point : " + point.toString(), true);
+					path->add(WorldCoordinates(Vector3(pathPoints[i][0], -pathPoints[i][2], pathPoints[i][1]), NULL));
+				}
+			}
+			
+			
+			break;
+		}
+	}
+	
 	path->add(pointB);
 
+	t.stop();
+	totalTime.add(t.getElapsedTime());
+	info("Spent " + String::valueOf(totalTime.get()) + " in recast", true);
 	return path;
 }
 
-Vector<WorldCoordinates>* PathFinderManager::findPathFromWorldToCell(const WorldCoordinates& pointA, const WorldCoordinates& pointB) {
+Vector<WorldCoordinates>* PathFinderManager::findPathFromWorldToCell(const WorldCoordinates& pointA, const WorldCoordinates& pointB, Zone* zone) {
 	CellObject* targetCell = pointB.getCell();
 
 	if (targetCell == NULL)
@@ -186,8 +273,10 @@ Vector<WorldCoordinates>* PathFinderManager::findPathFromWorldToCell(const World
 
 		if (cellID == 0) { // we are still outside
 			WorldCoordinates coord(pathNode->getPosition(), targetCell);
-
+			
+			// connect world to outside node
 			path->add(WorldCoordinates(coord.getWorldPosition(), NULL));
+			
 		} else { // we are inside the building
 			CellObject* pathCell = building->getCell(cellID);
 
@@ -313,7 +402,7 @@ Vector3 PathFinderManager::transformToModelSpace(const Vector3& point, SceneObje
 	return transformedPosition;
 }
 
-Vector<WorldCoordinates>* PathFinderManager::findPathFromCellToWorld(const WorldCoordinates& pointA, const WorldCoordinates& pointB) {
+Vector<WorldCoordinates>* PathFinderManager::findPathFromCellToWorld(const WorldCoordinates& pointA, const WorldCoordinates& pointB, Zone *zone) {
 	Vector<WorldCoordinates>* path = new Vector<WorldCoordinates>(5, 1);
 
 	if (path == NULL)
@@ -437,8 +526,15 @@ Vector<WorldCoordinates>* PathFinderManager::findPathFromCellToWorld(const World
 
 	delete exitPath;
 	exitPath = NULL;
-
-	path->add(pointB);
+	
+	if(path->size()) {
+		Vector<WorldCoordinates>* newPath = findPathFromWorldToWorld(path->get(path->size()-1), pointB, zone);
+		if (newPath) {
+			path->addAll(*newPath);
+			delete newPath;
+		}
+	} else
+		path->add(pointB);
 
 	return path;
 }

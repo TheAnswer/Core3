@@ -59,6 +59,9 @@ import system.thread.Mutex;
 include server.zone.objects.scene.variables.ContainerObjectsMap;
 import server.zone.objects.tangible.TangibleObject;
 import server.zone.objects.creature.ai.AiAgent;
+include templates.appearance.MeshData;
+include templates.collision.BaseBoundingVolume;
+
 
 @mock
 class SceneObject extends QuadTreeEntry implements Logger {
@@ -2009,5 +2012,13 @@ class SceneObject extends QuadTreeEntry implements Logger {
 	public native boolean isDataPad();
 
 	public native abstract float getTemplateRadius();
+
+	@local
+	@dereferenced
+	public abstract native Vector<Reference<MeshData> > getTransformedMeshData(Matrix4 parentTransform);
+
+	@dirty
+	@local
+	public abstract native final BaseBoundingVolume getBoundingVolume();
 }
 
