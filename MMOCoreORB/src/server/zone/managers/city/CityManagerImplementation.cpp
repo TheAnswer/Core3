@@ -219,6 +219,13 @@ CityRegion* CityManagerImplementation::createCity(CreatureObject* mayor, const S
 	chatManager->sendMail("@city/city:new_city_from", subject, params, mayor->getFirstName(), NULL);
 
 	cities.put(cityName, city);
+	
+	Core::getTaskManager()->executeTask([=]{
+		Vector3 center(x, 0, y);
+		Vector3 radius(470, 0, 470);
+		AABB box(center-radius, center+radius);
+		city->updateNavmesh(box);
+	}, "createInitialNavmesh");
 
 	return city;
 }
@@ -784,6 +791,18 @@ void CityManagerImplementation::processCityUpdate(CityRegion* city) {
 		processIncomeTax(city);
 
 		deductCityMaintenance(city);
+		
+		if (!city->getNavMesh() && !city->isClientRegion()) {
+			Vector3 center(city->getPositionX(), 0, city->getPositionY());
+			Vector3 radius(470, 0, 470);
+			AABB box(center-radius, center+radius);
+			
+			// This creates navmeshes for existing cities
+			Core::getTaskManager()->executeTask([=]{
+				city->updateNavmesh(box);
+			}, "createInitialNavmesh");
+			
+		}
 
 	} catch (Exception& e) {
 		error(e.getMessage() + "in CityManagerImplementation::processCityUpdate");

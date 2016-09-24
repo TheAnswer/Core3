@@ -31,3 +31,5 @@ void CityHallZoneComponent::destroyObjectFromWorld(SceneObject* sceneObject, boo
 
 	ZoneComponent::destroyObjectFromWorld(sceneObject, sendSelfDestroy);
 }
+
+

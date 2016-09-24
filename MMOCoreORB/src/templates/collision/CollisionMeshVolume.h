@@ -20,7 +20,7 @@ public:
 	bool isCollisionMesh() { return true; }
 	CollisionMeshVolume() : bbox(Vector3(0, 0, 0), Vector3(0, 0, 0)){ }
 	virtual void read(IffStream* iff);
-	const AABB& getBoundingBox() {
+	const AABB& getBoundingBox() const {
 		return bbox;
 	}
 	//virtual osg::ref_ptr<osg::Node> draw() const;
