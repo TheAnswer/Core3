@@ -27,12 +27,20 @@ public:
 		iff->getString(templateFile);
 		iff->getString(cellName);
 		
-		for (int x = 0; x < 3; x++) {
-			for (int y = 0; y < 4; y++)
-			{
-				transform[x][y] = iff->getFloat();
-			}
-		}
+		transform[0][0] = iff->getFloat();
+		transform[1][0] = iff->getFloat();
+		transform[2][0] = iff->getFloat();
+		transform[3][0] = iff->getFloat();
+		
+		transform[0][1] = iff->getFloat();
+		transform[1][1] = iff->getFloat();
+		transform[2][1] = iff->getFloat();
+		transform[3][1] = iff->getFloat();
+		
+		transform[0][2] = iff->getFloat();
+		transform[1][2] = iff->getFloat();
+		transform[2][2] = iff->getFloat();
+		transform[3][2] = iff->getFloat();
 		
 		iff->closeChunk('NODE');
 	}
@@ -59,27 +67,26 @@ public:
 	}
 	
 	void load_0000(IffStream *iff) {
-		Chunk *chunk = iff->openForm('0000');
-		for (int i=0; i<chunk->getChunksSize(); i++) {
-			Reference<InteriorNode*> node = new InteriorNode;
-			node->load(iff);
-			children.add(node);
-		}
-		
-		iff->closeForm('0000');
+
 	}
 	
 	void readObject(IffStream *iff) {
 		iff->openForm('INLY');
 		uint32 type = iff->getNextFormType();
 
-		switch(type) {
-			case '0000':
-				load_0000(iff);
-				break;
-			default:
-				TemplateManager::instance()->error("Unknown interior layout type " + String::hexvalueOf((int64)type));
-		};
+		if(type == '0000') {
+			Chunk *chunk = iff->openForm('0000');
+			for (int i=0; i<chunk->getChunksSize(); i++) {
+				Reference<InteriorNode*> node = new InteriorNode;
+				node->load(iff);
+				children.add(node);
+			}
+			
+			iff->closeForm('0000');
+		} else {
+			TemplateManager::instance()->error("Unknown interior layout type " + String::hexvalueOf((int64)type));
+		}
+
 		iff->closeForm('INLY');
 		
 	}

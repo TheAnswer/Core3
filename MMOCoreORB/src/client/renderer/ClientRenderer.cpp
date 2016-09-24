@@ -42,13 +42,13 @@
 #include <osg/Shape>
 #include <osg/ShapeDrawable>
 #include <osgGA/StateSetManipulator>
-#include "client/zone/objects/pathing/RecastNavMesh.h"
+#include "pathfinding/RecastNavMesh.h"
 
-#include "recast/Recast.h"
+#include "pathfinding/recast/Recast.h"
 
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
-#include "client/zone/objects/pathing/RecastNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
+#include "pathfinding/RecastNavMeshBuilder.h"
 
 void ClientRenderer::initialize(ClientCore *core, Zone* zone, Vector3 startPosition, osgViewer::Viewer* v) {
 	info("starting up renderer..");
@@ -305,8 +305,6 @@ void ClientRenderer::run() {
 				longest = extents.getZ();
 			
 			info("Building region terrain for: " + region->name, true);
-			
-			
 			
 			box = AABB(Vector3(center.getX()-longest, center.getY()-longest, center.getZ()-longest),
 					   Vector3(center.getX()+longest, center.getY()+longest, center.getZ()+longest));
