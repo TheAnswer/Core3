@@ -373,6 +373,22 @@ Reference<SceneObject*> PlanetManagerImplementation::loadSnapshotObject(WorldSna
 
 		zone->transferObject(object, -1, true);
 	}
+	
+	for (int i=0; i<navmeshesToBuild.size(); i++) {
+		
+		Reference<NavmeshRegion*> region = navmeshesToBuild.get(i);
+		for(int j=0; j<region->regionBounds.size(); j++) {
+			Sphere sphere = region->regionBounds.get(j);
+			Vector3 sPos = sphere.getCenter();
+			Vector3 objPos = object->getPosition();
+			Matrix4 identity;
+			
+			if((sPos-objPos).length() < sphere.getRadius()) {
+				region->sceneData.addAll(object->getTransformedMeshData(&identity));
+			}
+		}
+
+	}
 
 	//Load child nodes
 	for (int i = 0; i < node->getNodeCount(); ++i) {
@@ -551,7 +567,9 @@ void PlanetManagerImplementation::loadClientRegions() {
 
 	DataTableIff dtiff;
 	dtiff.readObject(iffStream);
-
+	
+	HashSet<String> loadedNavRegions;
+	String zoneName = zone->getZoneName();
 	for (int i = 0; i < dtiff.getTotalRows(); ++i) {
 		String regionName;
 		float x, y, radius;
@@ -573,6 +591,37 @@ void PlanetManagerImplementation::loadClientRegions() {
 			cityRegion->setRegionName(regionName);
 			cityRegion->setZone(zone);
 			regionMap.addRegion(cityRegion);
+		}
+		
+		String filename = regionName;
+		if(zoneName == "endor" || zoneName == "dantooine"/*fuck SOE*/)
+			filename = zoneName+"_"+regionName;
+		
+		filename = filename.subString(filename.lastIndexOf(':')+1) + ".navmesh";
+		
+		if (!loadedNavRegions.contains(filename)) {
+		
+			Reference<NavmeshRegion*> region = navmeshesToBuild.get(filename);
+
+			if (region == NULL) {
+				region = new NavmeshRegion();
+				
+				Reference<RecastNavMesh*> navMesh = new RecastNavMesh(filename);
+				if(navMesh->isLoaded()) {
+					region->navMesh = navMesh;
+					navmeshes.add(region);
+					info("Loaded " + filename, true);
+				} else {
+					region->navMesh = navMesh =  NULL;
+					region->name = filename;
+					Sphere sphere(Vector3(x, terrainManager->getHeight(x, y), y), radius);
+					region->regionBounds.add(sphere);
+					navmeshesToBuild.put(filename, region);
+				}
+			} else {
+				Sphere sphere(Vector3(x, terrainManager->getHeight(x, y), y), radius);
+				region->regionBounds.add(sphere);
+			}
 		}
 
 		Locker locker(cityRegion);

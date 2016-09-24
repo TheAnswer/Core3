@@ -98,10 +98,10 @@ bool CollisionManager::checkSphereCollision(const Vector3& origin, float radius,
 			SharedObjectTemplate* templateObject = scno->getObjectTemplate();
 			
 			if (templateObject == NULL)
-				return NULL;
+				return false;
 			
 			if (!(templateObject->getCollisionActionBlockFlags() & 255))
-				return NULL;
+				return false;
 			
 			Sphere sphere(convertToModelSpace(sphereOrigin, scno), radius);
 			
