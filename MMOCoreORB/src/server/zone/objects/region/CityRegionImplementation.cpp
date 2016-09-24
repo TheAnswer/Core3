@@ -29,9 +29,12 @@
 #include "templates/tangible/SharedStructureObjectTemplate.h"
 #include "server/zone/Zone.h"
 #include "server/zone/objects/player/sui/messagebox/SuiMessageBox.h"
-
+#include "server/zone/managers/collision/NavMeshManager.h"
 #include "server/zone/objects/creature/commands/QueueCommand.h"
 #include "server/zone/objects/creature/commands/TransferstructureCommand.h"
+#include "server/zone/managers/collision/NavMeshManager.h"
+#include "pathfinding/RecastNavMesh.h"
+#include "server/zone/objects/pathfinding/NavMeshRegion.h"
 
 int BoardShuttleCommand::MAXIMUM_PLAYER_COUNT = 3000;
 
@@ -40,6 +43,22 @@ void CityRegionImplementation::initializeTransientMembers() {
 
 	loaded = false;
 	completeStructureList.setNoDuplicateInsertPlan();
+
+//    String meshName = zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh";
+//    navmeshRegion = new NavMeshRegion();
+//    RecastNavMesh *mesh = new RecastNavMesh(meshName);
+//    navmeshRegion->setNavMesh(mesh);
+//	if (zone) {
+//        RecastNavMesh *mesh = navmeshRegion->getNavMesh();
+//		if(mesh == NULL || !mesh->isLoaded()) {
+//			rescheduleUpdateEvent(45);
+//		} else {
+//            zone->getPlanetManager()->addNavMesh(navmeshRegion);
+//		}
+//
+//	} else {
+//		rescheduleUpdateEvent(30);
+//	}
 }
 
 void CityRegionImplementation::notifyLoadFromDatabase() {
@@ -98,6 +117,22 @@ void CityRegionImplementation::initialize() {
 
 }
 
+void CityRegionImplementation::updateNavmesh(const AABB& bounds) {
+
+    if(navmeshRegion == NULL)
+        return;
+
+    RecastNavMesh *navmesh = navmeshRegion->getNavMesh();
+
+    if (navmesh == NULL || !navmesh->isLoaded()) {
+        NavMeshManager::instance()->enqueueJob(zone, navmeshRegion, navmeshRegion->getBoundingBox());
+    } else {
+        NavMeshManager::instance()->enqueueJob(zone, navmeshRegion, bounds);
+    }
+
+
+}
+
 Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool persistent) {
 	if (zone == NULL) {
 		return NULL;
@@ -117,7 +152,7 @@ Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool
 	region->setRadius(radius);
 	region->initializePosition(x, 0, y);
 	region->setObjectName(regionName, false);
-
+	
 	if (isClientRegion())
 		region->setNoBuildArea(true);
 
@@ -167,6 +202,8 @@ void CityRegionImplementation::notifyEnter(SceneObject* object) {
 
 	object->setCityRegion(_this.getReferenceUnsafeStaticCast());
 
+
+
 	if (object->isBazaarTerminal() || object->isVendor()) {
 
 		if (object->isBazaarTerminal())
@@ -181,8 +218,9 @@ void CityRegionImplementation::notifyEnter(SceneObject* object) {
 			terminalData->updateUID();
 	}
 
-	if (isClientRegion())
+	if (isClientRegion()) {
 		return;
+	}
 
 	if (object->isCreatureObject()) {
 		CreatureObject* creature = cast<CreatureObject*>(object);
@@ -291,8 +329,9 @@ void CityRegionImplementation::notifyExit(SceneObject* object) {
 	if (object->isPlayerCreature())
 		currentPlayers.decrement();
 
-	if (isClientRegion())
+	if (isClientRegion()) {
 		return;
+	}
 
 	if (object->isCreatureObject()) {
 
@@ -414,8 +453,94 @@ bool CityRegionImplementation::hasZoningRights(uint64 objectid) {
 	return (now.getTime() <= timestamp);
 }
 
+void CityRegionImplementation::createNavRegion() {
+
+    if(navmeshRegion != NULL) {
+        RecastNavMesh* mesh = getNavMesh();
+        if(mesh == NULL || !mesh->isLoaded()) {
+            Core::getTaskManager()->executeTask([=] {
+                updateNavmesh(navmeshRegion->getBoundingBox());
+            }, "cityregion_navmesh_update");
+            return;
+        }
+    }
+    navmeshRegion = zone->getZoneServer()->createObject(STRING_HASHCODE("object/region_navmesh.iff"), true).castTo<NavMeshRegion*>();
+
+    if (navmeshRegion == NULL || !navmeshRegion->isRegion()) {
+        error("Failed to create navmesh region");
+        return;
+    }
+
+	Locker clocker(navmeshRegion, _this.getReferenceUnsafeStaticCast());
+
+	String name = getRegionName();
+	name = name.subString(name.lastIndexOf(':')+1);
+	
+	if(isClientRegion()) {
+		Vector3 center;
+
+		float minx = 30000;
+		float miny = 30000;
+		float minz = 30000;
+
+		float maxx = -30000;
+		float maxy = -30000;
+		float maxz = -30000;
+
+
+		// Build Extents (Always Square)
+		for (Reference < Region * > region : regions) {
+
+			if (region == NULL)
+				continue;
+
+			//const Sphere &sphere = region->regionBounds.get(s);
+			const float &radius = region->getRadius();
+			const Vector3 &vert = region->getWorldPosition();
+			const float &x = vert.getX();
+			const float &y = vert.getY();
+			const float &z = vert.getZ();
+
+			if (x + radius > maxx)
+				maxx = x + radius;
+
+			if (y + radius > maxy)
+				maxy = y + radius;
+
+			if (z + radius > maxz)
+				maxz = z + radius;
+
+			if (x - radius < minx)
+				minx = x - radius;
+
+			if (y - radius < miny)
+				miny = y - radius;
+
+			if (z - radius < minz)
+				minz = z - radius;
+		}
+
+		AABB box(Vector3(minx, miny, minz), Vector3(maxx, maxy, maxz));
+		Vector3 position = Vector3(box.center()[0], 0, box.center()[1]);
+		navmeshRegion->disableMeshUpdates(true);
+		navmeshRegion->initializeNavRegion(position, box.extents()[box.longestAxis()], zone, name);
+	} else {
+		Vector3 position = Vector3(getPositionX(), 0, getPositionY());
+		navmeshRegion->initializeNavRegion(position, 480.0f, zone, name);
+	}
+
+    zone->transferObject(navmeshRegion, -1, false);
+
+    //Core::getTaskManager()->executeTask([=]{
+    //updateNavmesh(navmeshRegion->getBoundingBox());
+    //}, "cityregion_updateNavMesh");
+
+}
+
 void CityRegionImplementation::setZone(Zone* zne) {
-	zone = zne;
+	if (zone != zne) {
+        zone = zne;
+    }
 }
 
 void CityRegionImplementation::setRadius(float rad) {
