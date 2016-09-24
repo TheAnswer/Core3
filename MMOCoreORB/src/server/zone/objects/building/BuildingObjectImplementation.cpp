@@ -1664,3 +1664,42 @@ BuildingObject* BuildingObject::asBuildingObject() {
 BuildingObject* BuildingObjectImplementation::asBuildingObject() {
 	return _this.getReferenceUnsafeStaticCast();
 }
+
+Vector<Reference<MeshData*> > BuildingObjectImplemtnation::getTransformedMeshData(Matrix4* parentTransform) {
+	Vector<Reference<MeshData*> > data;
+	const Matrix4 transform = getRecastTransform();
+
+	if (cells.size() > 0) {
+		
+		CellObject *cell = cells.get(0);
+		
+		Vector<Reference<MeshData*> > cellData = cell->getTransformedMeshData(transform * *parentTransform);
+		//		for (int i=0; i<cellData.size(); i++) {
+		//			cellData.get(i)->transformMeshData(transform);
+		//		}
+		
+		data.addAll(cellData);
+		
+		const PortalLayout* portalLayout = templateData->getPortalLayout();
+		
+		const CellProperty* tmpl = portalLayout->getCellProperty(0);
+		
+		
+		// Draw exterior doors to block pathfinding
+		for (int i=0; i<tmpl->getNumberOfPortals(); i++) {
+			CellPortal* portal = tmpl->getPortal(i);
+			const MeshData* mesh = portalLayout->getPortalGeometry(portal->getGeometryIndex());
+			
+			if(portal->hasDoorTransform()) {
+				Matrix4 doorTransform = portal->getDoorTransform();
+				doorTransform.swapLtoR();
+				data.add(MeshData::makeCopyNegateZ(mesh, (doorTransform * transform) * *parentTransform));
+			} else
+				data.add(MeshData::makeCopyNegateZ(mesh, transform * *parentTransform));
+		}
+	}
+	
+	data.addAll(SceneObject::getTransformedMeshData(parentTransform));
+	
+	return data;
+}
