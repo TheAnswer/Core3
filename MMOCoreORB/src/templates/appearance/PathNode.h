@@ -15,34 +15,13 @@
 class PathGraph;
 
 class PathNode : public Object {
-public:
-	enum PathNodeType
-	{
-		CellPortal           = 0,
-		CellWaypoint         = 1,
-		CellPOI              = 2,
-		
-		BuildingEntrance     = 3,
-		BuildingCell         = 4,
-		BuildingPortal       = 5,
-		
-		CityBuildingEntrance = 6,
-		CityWaypoint         = 7,
-		CityPOI              = 8,
-		CityBuilding         = 9,
-		CityEntrance         = 10,
-		
-		BuildingCellPart     = 11,
-		
-		Invalid              = 12,
-	};
 protected:
 
 	Vector<PathNode*> children;
 
 	uint32 id;
 	int var2, globalGraphNodeID;
-	PathNodeType type;
+	int type;
 	float x, z, y, radius;
 
 	PathGraph* pathGraph;
@@ -54,7 +33,7 @@ public:
 		pathGraph = graph;
 		id = 0;
 		var2 = globalGraphNodeID = 0;
-		type = Invalid;
+		type = 0;
 		x = z = y = radius = 0;
 	}
 
@@ -66,7 +45,7 @@ public:
 		id = iffStream->getInt(); // index
 		var2 = iffStream->getInt(); // ID
 		globalGraphNodeID = iffStream->getInt(); // Key
-		type = static_cast<PathNodeType>(iffStream->getInt()); // type
+		type = iffStream->getInt();
 
 		x = iffStream->getFloat(); // position
 		z = iffStream->getFloat();
@@ -102,7 +81,7 @@ public:
 		return radius;
 	}
 
-	inline PathNodeType getType() const {
+	inline int getType() const {
 		return type;
 	}
 
