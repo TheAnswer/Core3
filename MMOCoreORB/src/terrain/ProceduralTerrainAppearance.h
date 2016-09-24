@@ -109,8 +109,16 @@ public:
 	float getGlobalWaterTableHeight() {
 		return globalWaterTableHeight;
 	}
+
+	bool getUseGlobalWaterTable() {
+		return useGlobalWaterTable;
+	}
 	ReadWriteLock* getGuard() {
 		return &guard;
+	}
+
+	float getDistanceBetweenPoles() {
+		return chunkSize / (tilesPerChunk * 2.0f);
 	}
 
 	TerrainGenerator* addTerrainModification(engine::util::IffStream* terrainGeneratorIffStream, float x, float y, uint64 objectid);
