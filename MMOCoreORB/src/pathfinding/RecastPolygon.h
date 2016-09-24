@@ -40,7 +40,7 @@ public:
 		*this = rhs;
 	}
 	
-	RecastPolygon& operator=(const RecastPolygon& rhs) {
+	RecastPolygon& operator=(const RecastPolygon& rhs) : Object(rhs) {
 		verts = new float[rhs.numVerts*3];
 		memcpy(verts, rhs.verts, sizeof(float)*rhs.numVerts);
 		type = rhs.type;
