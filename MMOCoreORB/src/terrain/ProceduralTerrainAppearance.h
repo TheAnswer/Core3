@@ -109,6 +109,10 @@ public:
 	float getGlobalWaterTableHeight() {
 		return globalWaterTableHeight;
 	}
+
+	bool getUseGlobalWaterTable() {
+		return useGlobalWaterTable;
+	}
 	ReadWriteLock* getGuard() {
 		return &guard;
 	}

@@ -48,10 +48,10 @@ protected:
 	static const AppearanceTemplate* getCollisionAppearance(SceneObject* scno, int collisionBlockFlags);
 	static Ray convertToModelSpace(const Vector3& rayOrigin, const Vector3& rayEnd, SceneObject* model);
 	static Vector3 convertToModelSpace(const Vector3& point, SceneObject* model);
-	static Reference<Matrix4*> getTransformMatrix(SceneObject* model);
+	
 public:
 	static TriangleNode* getTriangle(const Vector3& point, FloorMesh* floor);
-
+	static Reference<Matrix4*> getTransformMatrix(SceneObject* model);
 	/**
 	 * @returns nearest available path node int the floor path graph with the lowest distance from triangle to final target
 	 */

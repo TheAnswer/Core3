@@ -17,13 +17,13 @@
 //
 
 #include "RecastTileBuilder.h"
-#include "recast/Recast.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
-#include "recast/DetourNavMeshQuery.h"
+#include "pathfinding/recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMeshQuery.h"
 #include "templates/appearance/MeshData.h"
 #include "ChunkyTriMesh.h"
-
+#include "terrain/layer/boundaries/BoundaryPolygon.h"
 inline unsigned int nextPow2(unsigned int v)
 {
 	v--;
@@ -48,7 +48,25 @@ inline unsigned int ilog2(unsigned int v)
 	return r;
 }
 
-RecastTileBuilder::RecastTileBuilder(float waterTableHeight, float x, float y, const AABB& bounds, const rcChunkyTriMesh* mesh) :
+RecastSettings::RecastSettings() {
+	m_tileSize = 128.0f;
+	m_cellSize = 0.15;			//buildSettings->cellSize;
+	m_cellHeight = 0.15;		//buildSettings->cellHeight;
+	m_agentHeight = 1.5f;		//buildSettings->agentHeight;
+	m_agentRadius = 0.5f;		//buildSettings->agentRadius;
+	m_agentMaxClimb = 0.75f;		//buildSettings->agentMaxClimb;
+	m_agentMaxSlope = 85;		//buildSettings->agentMaxSlope;
+	m_regionMinSize = 8;		//buildSettings->regionMinSize;
+	m_regionMergeSize = 28;		//buildSettings->regionMergeSize;
+	m_edgeMaxLen = 12;			//buildSettings->edgeMaxLen;
+	m_edgeMaxError = 1.3;			//buildSettings->edgeMaxError;
+	m_vertsPerPoly = 6;			//buildSettings->vertsPerPoly;
+	m_detailSampleDist = 3;		//buildSettings->detailSampleDist;
+	m_detailSampleMaxError = 1;	//buildSettings->detailSampleMaxError;
+	m_partitionType = 0;		//buildSettings->partitionType;
+}
+
+RecastTileBuilder::RecastTileBuilder(float waterTableHeight, float x, float y, const AABB& bounds, const rcChunkyTriMesh* mesh, const RecastSettings& settings) :
 m_keepInterResults(false),
 m_buildAll(true),
 m_totalBuildTimeMs(0),
@@ -60,28 +78,32 @@ m_pmesh(0),
 m_dmesh(0),
 m_maxTiles(0),
 m_maxPolysPerTile(0),
-m_tileSize(192.0f),
-m_cellSize(0.15f),
 bounds(Vector3(0, 0, 0), Vector3(0, 0, 0)),
 m_tileTriCount(0),
 waterTableHeight(waterTableHeight),
 lastTileBounds(bounds)
 {
 	
-	m_cellSize = 0.115;			//buildSettings->cellSize;
-	m_cellHeight = 0.115;		//buildSettings->cellHeight;
-	m_agentHeight = 1.5f;		//buildSettings->agentHeight;
-	m_agentRadius = 0.5f;		//buildSettings->agentRadius;
-	m_agentMaxClimb = 0.5f;		//buildSettings->agentMaxClimb;
-	m_agentMaxSlope = 85;		//buildSettings->agentMaxSlope;
-	m_regionMinSize = 4;		//buildSettings->regionMinSize;
-	m_regionMergeSize = 48;		//buildSettings->regionMergeSize;
-	m_edgeMaxLen = 12;			//buildSettings->edgeMaxLen;
-	m_edgeMaxError = 2;			//buildSettings->edgeMaxError;
-	m_vertsPerPoly = 6;			//buildSettings->vertsPerPoly;
-	m_detailSampleDist = 3;		//buildSettings->detailSampleDist;
-	m_detailSampleMaxError = 2;	//buildSettings->detailSampleMaxError;
-	m_partitionType = 0;		//buildSettings->partitionType;
+	this->settings = settings;
+	// Init build configuration from GUI
+	memset(&m_cfg, 0, sizeof(m_cfg));
+	m_cfg.cs = settings.m_cellSize;
+	m_cfg.ch = settings.m_cellHeight;
+	m_cfg.walkableSlopeAngle = settings.m_agentMaxSlope;
+	m_cfg.walkableHeight = (int)ceilf(settings.m_agentHeight / m_cfg.ch);
+	m_cfg.walkableClimb = (int)floorf(settings.m_agentMaxClimb / m_cfg.ch);
+	m_cfg.walkableRadius = (int)ceilf(settings.m_agentRadius / m_cfg.cs);
+	m_cfg.maxEdgeLen = (int)(settings.m_edgeMaxLen / settings.m_cellSize);
+	m_cfg.maxSimplificationError = settings.m_edgeMaxError;
+	m_cfg.minRegionArea = (int)rcSqr(settings.m_regionMinSize);		// Note: area = size*size
+	m_cfg.mergeRegionArea = (int)rcSqr(settings.m_regionMergeSize);	// Note: area = size*size
+	m_cfg.maxVertsPerPoly = (int)settings.m_vertsPerPoly;
+	m_cfg.tileSize = (int)settings.m_tileSize;
+	m_cfg.borderSize = m_cfg.walkableRadius + 3; // Reserve enough padding.
+	m_cfg.width = m_cfg.tileSize + m_cfg.borderSize*2;
+	m_cfg.height = m_cfg.tileSize + m_cfg.borderSize*2;
+	m_cfg.detailSampleDist = settings.m_detailSampleDist < 0.9f ? 0 : settings.m_cellSize * settings.m_detailSampleDist;
+	m_cfg.detailSampleMaxError = settings.m_cellHeight * settings.m_detailSampleMaxError;
 	tileX = x;
 	tileY = y;
 	m_ctx = new rcContext();
@@ -111,24 +133,6 @@ void RecastTileBuilder::cleanup()
 	m_dmesh = 0;
 }
 
-
-static const int NAVMESHSET_MAGIC = 'M'<<24 | 'S'<<16 | 'E'<<8 | 'T'; //'MSET';
-static const int NAVMESHSET_VERSION = 1;
-
-struct NavMeshSetHeader
-{
-	int magic;
-	int version;
-	int numTiles;
-	dtNavMeshParams params;
-};
-
-struct NavMeshTileHeader
-{
-	dtTileRef tileRef;
-	int dataSize;
-};
-
 unsigned char* RecastTileBuilder::build(float x, float y, const AABB& lastTileBounds, int& dataSize)
 {
 	
@@ -146,8 +150,8 @@ unsigned char* RecastTileBuilder::build(float x, float y, const AABB& lastTileBo
 	bmax[1] = bounds.getYMax();
 	bmax[2] = bounds.getZMax();
 	
-	rcCalcGridSize(bmin, bmax, m_cellSize, &gw, &gh);
-	const int ts = (int)m_tileSize;
+	rcCalcGridSize(bmin, bmax, settings.m_cellSize, &gw, &gh);
+	const int ts = (int)settings.m_tileSize;
 	const int tw = (gw + ts-1) / ts;
 	const int th = (gh + ts-1) / ts;
 	
@@ -165,8 +169,8 @@ unsigned char* RecastTileBuilder::build(float x, float y, const AABB& lastTileBo
 	params.orig[2] = bounds.getZMin();
 	
 	//rcVcopy(params.orig, m_geom->getNavMeshBoundsMin());
-	params.tileWidth = m_tileSize*m_cellSize;
-	params.tileHeight = m_tileSize*m_cellSize;
+	params.tileWidth = settings.m_tileSize*settings.m_cellSize;
+	params.tileHeight = settings.m_tileSize*settings.m_cellSize;
 	params.maxTiles = m_maxTiles;
 	params.maxPolys = m_maxPolysPerTile;
 	
@@ -223,7 +227,7 @@ void RecastTileBuilder::getTilePos(const Vector3& pos, int& tx, int& ty)
 	
 	const Vector3& bmin = *bounds.getMinBound();
 	
-	const float ts = m_tileSize*m_cellSize;
+	const float ts = settings.m_tileSize*settings.m_cellSize;
 	tx = (int)((pos.getX() - bmin.getX()) / ts);
 	ty = (int)((pos.getZ() - bmin.getZ()) / ts);
 }
@@ -251,26 +255,6 @@ unsigned char* RecastTileBuilder::buildTileMesh(const int tx, const int ty, int&
 	
 	const int ntris = triArray->size();
 	//const rcChunkyTriMesh* chunkyMesh = m_geom->getChunkyMesh();
-	
-	// Init build configuration from GUI
-	memset(&m_cfg, 0, sizeof(m_cfg));
-	m_cfg.cs = m_cellSize;
-	m_cfg.ch = m_cellHeight;
-	m_cfg.walkableSlopeAngle = m_agentMaxSlope;
-	m_cfg.walkableHeight = (int)ceilf(m_agentHeight / m_cfg.ch);
-	m_cfg.walkableClimb = (int)floorf(m_agentMaxClimb / m_cfg.ch);
-	m_cfg.walkableRadius = (int)ceilf(m_agentRadius / m_cfg.cs);
-	m_cfg.maxEdgeLen = (int)(m_edgeMaxLen / m_cellSize);
-	m_cfg.maxSimplificationError = m_edgeMaxError;
-	m_cfg.minRegionArea = (int)rcSqr(m_regionMinSize);		// Note: area = size*size
-	m_cfg.mergeRegionArea = (int)rcSqr(m_regionMergeSize);	// Note: area = size*size
-	m_cfg.maxVertsPerPoly = (int)m_vertsPerPoly;
-	m_cfg.tileSize = (int)m_tileSize;
-	m_cfg.borderSize = m_cfg.walkableRadius + 3; // Reserve enough padding.
-	m_cfg.width = m_cfg.tileSize + m_cfg.borderSize*2;
-	m_cfg.height = m_cfg.tileSize + m_cfg.borderSize*2;
-	m_cfg.detailSampleDist = m_detailSampleDist < 0.9f ? 0 : m_cellSize * m_detailSampleDist;
-	m_cfg.detailSampleMaxError = m_cellHeight * m_detailSampleMaxError;
 	
 	// Expand the heighfield bounding box by border size to find the extents of geometry we need to build this tile.
 	//
@@ -487,7 +471,7 @@ unsigned char* RecastTileBuilder::buildTileMesh(const int tx, const int ty, int&
 	//     if you have large open areas with small obstacles (not a problem if you use tiles)
 	//   * good choice to use for tiled navmesh with medium and small sized tiles
 	
-	if (m_partitionType == 0)
+	if (settings.m_partitionType == 0)
 	{
 		// Prepare for region partitioning, by calculating distance field along the walkable surface.
 		if (!rcBuildDistanceField(m_ctx, *m_chf))
@@ -503,7 +487,7 @@ unsigned char* RecastTileBuilder::buildTileMesh(const int tx, const int ty, int&
 			return 0;
 		}
 	}
-	else if (m_partitionType == 1)
+	else if (settings.m_partitionType == 1)
 	{
 		// Partition the walkable surface into simple regions without holes.
 		// Monotone partitioning does not need distancefield.
@@ -630,9 +614,9 @@ unsigned char* RecastTileBuilder::buildTileMesh(const int tx, const int ty, int&
 		params.offMeshConFlags = NULL;//m_geom->getOffMeshConnectionFlags();
 		params.offMeshConUserID = NULL;//m_geom->getOffMeshConnectionId();
 		params.offMeshConCount = 0;//m_geom->getOffMeshConnectionCount();
-		params.walkableHeight = m_agentHeight;
-		params.walkableRadius = m_agentRadius;
-		params.walkableClimb = m_agentMaxClimb;
+		params.walkableHeight = settings.m_agentHeight;
+		params.walkableRadius = settings.m_agentRadius;
+		params.walkableClimb = settings.m_agentMaxClimb;
 		params.tileX = tx;
 		params.tileY = ty;
 		params.tileLayer = 0;
@@ -641,6 +625,7 @@ unsigned char* RecastTileBuilder::buildTileMesh(const int tx, const int ty, int&
 		params.cs = m_cfg.cs;
 		params.ch = m_cfg.ch;
 		params.buildBvTree = true;
+		
 		
 		if (!dtCreateNavMeshData(&params, &navData, &navDataSize))
 		{

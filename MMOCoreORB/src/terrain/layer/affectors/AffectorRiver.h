@@ -54,16 +54,9 @@ class AffectorRiver : public ProceduralRule<'ARIV'>, public AffectorProceduralRu
 	String var15;
 
 public:
-	AffectorRiver() : var1(0), width(0), var3(0), var4(0), var5(0), featheringAmount(0), var7(0), var8(0),
-		var9(0), var10(0), var11(0), var12(0) {
-		
-	}
+	AffectorRiver();
 
-	~AffectorRiver() {
-		for (int i = 0; i < positions.size(); ++i)
-			delete positions.get(i);
-	}
-
+	~AffectorRiver();
 	void parseFromIffStream(engine::util::IffStream* iffStream) {
 		uint32 version = iffStream->getNextFormType();
 
@@ -145,7 +138,7 @@ public:
 			Point2D* pos = new Point2D();
 			pos->x = iffStream->getFloat();
 			pos->y = iffStream->getFloat();
-
+			System::out << "River Point: " << pos->x << ", " << pos->y << endl;
 			positions.add(pos);
 		}
 

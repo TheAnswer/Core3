@@ -734,6 +734,12 @@ void CityManagerImplementation::processCityUpdate(CityRegion* city) {
 		destroyCity(city);
 		return;
 	}
+	
+//	if (!city->isClientRegion() && city->getNavMesh() == NULL) {
+//
+//
+//		city->updateNavmesh(box);
+//	}
 
 	int cityRank = 0;
 	float radius = 0;
@@ -757,6 +763,8 @@ void CityManagerImplementation::processCityUpdate(CityRegion* city) {
 				ghost->addExperience("political", 750, true);
 			}
 		}
+		
+
 
 		updateCityVoting(city);
 

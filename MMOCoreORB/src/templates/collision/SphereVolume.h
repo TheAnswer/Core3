@@ -16,7 +16,7 @@ protected:
 	AABB bbox;
 public:
 	SphereVolume() : bbox(Vector3(0, 0, 0), Vector3(0, 0, 0)) { }
-	const AABB& getBoundingBox() {
+	const AABB& getBoundingBox() const {
 		return bbox;
 	}
 	
