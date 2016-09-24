@@ -14,23 +14,25 @@ using namespace trn::ptat;
 MapFractal::MapFractal() {
 	noise = NULL;
 	rand = NULL;
-
+	
 	bias = 0;
-	biasValue = 0;
+	biasValue = 0.5;
 	gainType = 0;
-	gainValue = 0;
-	octaves = 0;
+	gainValue = 0.7;
+	octaves = 2;
 	octavesParam = 0;
-	amplitude = 0;
-	xFrequency = 0;
-	yFrequency = 0;
+	amplitude = 0.5;
+	xFrequency = 0.01;
+	yFrequency = 0.01;
 	xOffset = 0;
 	zOffset = 0;
 	combination = 0;
-
-	offset32 = 0;
-
+	
+	offset32 = 1.0;
+	
 	unkown = false;
+	
+	setSeed(0);
 }
 
 float MapFractal::getNoise(float x, float y, int i, int j) {

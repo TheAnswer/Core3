@@ -122,6 +122,16 @@ PathNode* PathGraph::findNearestGlobalNode(const Vector3& pointAlfa) {
 	return node;
 }
 
+Vector<const PathNode*> PathGraph::getEntrances(const Vector3& pointAlfa) {
+	Vector<const PathNode*> vec;
+	for (const PathNode *node : pathNodes) {
+		if(node->getType() == PathNode::BuildingEntrance) {
+			vec.add(node);
+		}
+	}
+	return vec;
+}
+
 PathNode* PathGraph::findNearestNode(const Vector3& pointAlfa) {
 	float minDistance = 160000000.f;
 	PathNode* node = NULL;

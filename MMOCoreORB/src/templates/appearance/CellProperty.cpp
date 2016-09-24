@@ -11,58 +11,52 @@
 
 
 void CellPortal::load_0004(IffStream *iff) {
-	passable = (bool)iff->getByte();
-	geometryIndex = iff->getInt();
-	winding = (bool)iff->getByte();
-	targetCell - iff->getInt();
-	iff->getString(doorName);
-	bHasDoorTransform = (bool)iff->getByte();
-	
-	for (int x = 0; x < 3; x++) {
-		for (int y = 0; y < 4; y++)
-		{
-			doorTransform[y][x] = iff->getFloat();
-		}
-	}
-//	Matrix4 testMat(Vector4(-1, 0, 0, 0), Vector4(0, 1, 0, 0), Vector4(0, 0, 1, 0), Vector4(0, 0, 0, 1));
-//
-	
 
-	//doorTransform[0][3] = -doorTransform[0][3];
-	
-	
-	
 }
 void CellPortal::readObject(IffStream *iff) {
 	Chunk *chunk = iff->openChunk();
 	
 	uint32 formType = chunk->getChunkID();
 	
-	switch(formType) {
-		case '0004':
-		{
-			load_0004(iff);
-			break;
-		}
-		default:
-		{
-			TemplateManager::instance()->error("Invalid CellPortal type");
-		}
+	if (formType == '0004') {
+		solid = (bool)iff->getByte();
+		geometryIndex = iff->getInt();
+		winding = (bool)iff->getByte();
+		int unk = iff->getInt();
+		iff->getString(doorName);
+		transformFlag = (bool)iff->getByte();
+		
+		doorTransform[0][0] = iff->getFloat();
+		doorTransform[1][0] = iff->getFloat();
+		doorTransform[2][0] = iff->getFloat();
+		doorTransform[3][0] = iff->getFloat();
+		
+		doorTransform[0][1] = iff->getFloat();
+		doorTransform[1][1] = iff->getFloat();
+		doorTransform[2][1] = iff->getFloat();
+		doorTransform[3][1] = iff->getFloat();
+		
+		doorTransform[0][2] = iff->getFloat();
+		doorTransform[1][2] = iff->getFloat();
+		doorTransform[2][2] = iff->getFloat();
+		doorTransform[3][2] = iff->getFloat();
+	} else {
+		TemplateManager::instance()->error("Invalid CellPortal type");
 	}
 	
 	iff->closeChunk();
 }
-CellProperty::CellProperty() : Object(), Logger("CellProperty"), canSeeParentCell(false), numberOfPortals(0),
+CellProperty::CellProperty() : Object(), Logger("CellProperty"), numberOfPortals(0),
 	floorMesh(NULL), appearanceTemplate(NULL), cellID(0) {
 
 }
 
-CellProperty::CellProperty(int cellID) : Logger("CellProperty"), canSeeParentCell(false), numberOfPortals(0),
+CellProperty::CellProperty(int cellID) : Logger("CellProperty"), numberOfPortals(0),
 	floorMesh(NULL), appearanceTemplate(NULL), cellID(cellID), boundingVolume(NULL) {
 }
 
 CellProperty::CellProperty(const CellProperty& c) : Object(), Logger("CellProperty"),
-		name(c.name), canSeeParentCell(c.canSeeParentCell), numberOfPortals(c.numberOfPortals),
+		name(c.name), numberOfPortals(c.numberOfPortals),
 			floorMesh(c.floorMesh), appearanceTemplate(c.appearanceTemplate), cellID(c.cellID), boundingVolume(c.boundingVolume), portals(c.portals) {
 
 }
@@ -73,7 +67,6 @@ CellProperty& CellProperty::operator=(const CellProperty& c) {
 
 	name = c.name;
 	numberOfPortals = c.numberOfPortals;
-	canSeeParentCell = c.canSeeParentCell;
 	floorMesh = c.floorMesh;
 	appearanceTemplate = c.appearanceTemplate;
 	cellID = c.cellID;
@@ -90,7 +83,7 @@ void CellProperty::load_0005(IffStream* iffStream) {
 	
 	numberOfPortals = iffStream->getInt();
 	
-	canSeeParentCell = iffStream->getByte();
+	Byte unk = iffStream->getByte();
 	
 	iffStream->getString(name);
 	
@@ -116,12 +109,13 @@ void CellProperty::load_0005(IffStream* iffStream) {
 		}
 	}
 	
-	bool hasFloor = (bool)iffStream->getByte();
+	bool flag = (bool)iffStream->getByte();
 	
-	if (hasFloor) {
+	if (flag) {
 		String floorFile;
 		iffStream->getString(floorFile);
 		floorMesh = TemplateManager::instance()->getFloorMesh(floorFile);
+		floorMesh->setCellID(cellID);
 		
 	}
 	
@@ -155,7 +149,7 @@ void CellProperty::load_0004(IffStream* iffStream) {
 	
 	numberOfPortals = iffStream->getInt();
 	
-	canSeeParentCell = iffStream->getByte();
+	Byte unk = iffStream->getByte();
 	
 	iffStream->getString(name);
 	
@@ -171,9 +165,9 @@ void CellProperty::load_0004(IffStream* iffStream) {
 		}
 	}
 	
-	bool hasFloor = (bool)iffStream->getByte();
+	bool flag = (bool)iffStream->getByte();
 	
-	if (hasFloor) {
+	if (flag) {
 		String floorFile;
 		iffStream->getString(floorFile);
 		floorMesh = TemplateManager::instance()->getFloorMesh(floorFile);

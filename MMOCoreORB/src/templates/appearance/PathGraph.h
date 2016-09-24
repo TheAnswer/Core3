@@ -64,6 +64,7 @@ public:
 	}
 
 	PathNode* findNearestNode(const Vector3& pointAlfa);
+	Vector<const PathNode*> getEntrances(const Vector3& point);
 	PathNode* findNearestGlobalNode(const Vector3& pointAlfa);
 	PathNode* findGlobalNode(int globalNodeID);
 
