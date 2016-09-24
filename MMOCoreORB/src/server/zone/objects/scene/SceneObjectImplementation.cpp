@@ -1680,3 +1680,15 @@ SceneObject* SceneObject::asSceneObject() {
 	return this;
 }
 
+Vector<Reference<MeshData*> > SceneObject::getTransformedMeshData(Matrix4* parentTransform) {
+	const AppearanceTemplate *appearance = getObjectTemplate()->getAppearanceTemplate();
+	if(appearance == NULL) {
+		Vector<Reference<MeshData*> > emptyData;
+		return emptyData;
+	}
+	Matrix4* transform = CollisionManager::getTransformMatrix(asSceneObject());
+	Vector<Reference<MeshData*> > meshes = appearance->getTransformedMeshData(*transform * *parentTransform );
+	
+	return meshes;
+}
+
