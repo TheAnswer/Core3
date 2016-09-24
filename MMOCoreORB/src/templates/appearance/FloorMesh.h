@@ -277,8 +277,6 @@ public:
 	}
 
 	inline void setCellID(int id) {
-		if (cellID != -1)
-			System::out << "UIWBIUGFISUBGSFIUBGSODIFGN" << endl;
 
 		cellID = id;
 	}
@@ -288,9 +286,6 @@ public:
 		Vector3 bary2 = node2->getBarycenter();
 
 		return bary.squaredDistanceTo(bary2);
-
-		/*return abs(bary.getX() - bary2.getX()) + abs(bary.getY() - bary2.getY())
-				+ abs(bary.getZ() - bary2.getZ());*/
 	}
 
 	friend class FloorMeshTriangleNode;

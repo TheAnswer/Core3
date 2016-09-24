@@ -76,13 +76,13 @@ LIBS =	$(SYSTEM_LIBS)  \
 #AM_LDFLAGS = -pagezero_size 10000 -image_base 100000000
 #AM_LDFLAGS = --enable-stdcall-fixup
 
-bin_PROGRAMS = core3client #core3  #odb3
+bin_PROGRAMS = core3  #odb3
 
-noinst_LIBRARIES = libcore3templates.a libcore3terrain.a libcore3recast.a
+noinst_LIBRARIES = libcore3templates.a libcore3terrain.a libcore3pathfinding.a
 
-core3_LDADD = libcore3templates.a libcore3terrain.a
+core3_LDADD = libcore3templates.a libcore3terrain.a libcore3pathfinding.a
 
-core3client_LDADD = libcore3templates.a libcore3terrain.a libcore3recast.a
+core3client_LDADD = libcore3templates.a libcore3terrain.a libcore3pathfinding.a
 core3client_LDFLAGS = -losg -losgUtil -losgTerrain -losgViewer -lOpenThreads -losgGA -ljemalloc
 
 #engine/engine.h.gch:
@@ -914,23 +914,27 @@ libcore3templates_a_SOURCES = templates/SharedObjectTemplate.cpp \
 		templates/tangible/SharedStructureObjectTemplate.cpp \
 		templates/tangible/SharedWeaponObjectTemplate.cpp 		
 
-libcore3recast_a_SOURCES = \
-		recast/Recast.cpp \
-		recast/RecastAlloc.cpp \
-		recast/RecastArea.cpp \
-		recast/RecastContour.cpp \
-		recast/RecastFilter.cpp \
-		recast/RecastLayers.cpp \
-		recast/RecastMesh.cpp \
-		recast/RecastMeshDetail.cpp \
-		recast/RecastRasterization.cpp \
-		recast/RecastRegion.cpp \
-		recast/DetourCommon.cpp \
-		recast/DetourNavMesh.cpp \
-		recast/DetourNavMeshBuilder.cpp \
-		recast/DetourNavMeshQuery.cpp \
-		recast/DetourNode.cpp \
-		recast/DetourAlloc.cpp
+libcore3pathfinding_a_SOURCES = \
+		pathfinding/recast/Recast.cpp \
+		pathfinding/recast/RecastAlloc.cpp \
+		pathfinding/recast/RecastArea.cpp \
+		pathfinding/recast/RecastContour.cpp \
+		pathfinding/recast/RecastFilter.cpp \
+		pathfinding/recast/RecastLayers.cpp \
+		pathfinding/recast/RecastMesh.cpp \
+		pathfinding/recast/RecastMeshDetail.cpp \
+		pathfinding/recast/RecastRasterization.cpp \
+		pathfinding/recast/RecastRegion.cpp \
+		pathfinding/recast/DetourCommon.cpp \
+		pathfinding/recast/DetourNavMesh.cpp \
+		pathfinding/recast/DetourNavMeshBuilder.cpp \
+		pathfinding/recast/DetourNavMeshQuery.cpp \
+		pathfinding/recast/DetourNode.cpp \
+		pathfinding/recast/DetourAlloc.cpp \
+		pathfinding/ChunkyTriMesh.cpp \
+		pathfinding/RecastNavMesh.cpp \
+		pathfinding/RecastNavMeshBuilder.cpp \
+		pathfinding/RecastTileBuilder.cpp
 
 core3client_SOURCES = \
 	client/ClientCore.cpp \
@@ -955,10 +959,6 @@ core3client_SOURCES = \
 	client/zone/objects/building/ClientCell.cpp \
 	client/zone/objects/building/ClientBuilding.cpp \
 	client/zone/managers/appearance/AppearanceManager.cpp \
-	client/zone/objects/pathing/RecastNavMesh.cpp \
-	client/zone/objects/pathing/RecastNavMeshBuilder.cpp \
-	client/zone/objects/pathing/RecastTileBuilder.cpp \
-	client/zone/objects/pathing/ChunkyTriMesh.cpp \
 	conf/ConfigManager.cpp \
 	tre3/TreeFile.cpp
 
