@@ -10,6 +10,8 @@
 
 #include "engine/engine.h"
 #include "server/zone/managers/player/PlayerManager.h"
+#include "templates/appearance/MeshData.h"
+#include "pathfinding/RecastNavMeshBuilder.h"
 
 class PlayerManagerCommand {
 public:
@@ -41,6 +43,44 @@ public:
 		String command;
 		tokenizer.getStringToken(command);
 		command = command.toLowerCase();
+		
+		if (command == "dumpmesh") {
+			if (!tokenizer.hasMoreTokens()) {
+				sendSyntax(player);
+				return 1;
+			}
+			
+			float range = tokenizer.getFloatToken();
+			SortedVector<ManagedReference<QuadTreeEntry*> > closeObjects;
+			player->getZone()->getInRangeSolidObjects(player->getWorldPositionX(), player->getWorldPositionY(), range, &closeObjects, true);
+			Matrix4 identity;
+			
+			Vector<Reference<MeshData*> > meshData;
+			
+			for (int i=0; i<closeObjects.size(); i++) {
+				SceneObject *sceno = closeObjects.get(i).castTo<SceneObject*>();
+				if(sceno)
+					meshData.addAll(sceno->getTransformedMeshData(&identity));
+			}
+			
+			// Get Terrain
+			//info("Building region terrain", true);
+			Vector3 position = player->getWorldPosition();
+			position = Vector3(position.getX(), position.getZ(), position.getY());
+			meshData.add(RecastNavMeshBuilder::getTerrainMesh(position, range*2, player->getZone()->getPlanetManager()->getTerrainManager()));
+			
+			// Flatten Transforms
+			Reference<MeshData*> flattened = RecastNavMeshBuilder::flattenMeshData(meshData);
+			meshData.removeAll();
+			
+			// Dump OBJ (optional - but very useful for debugging)
+			Vector<Reference<MeshData*> > test;
+			test.add(flattened);
+			RecastNavMeshBuilder::dumpOBJ("test.obj", test);
+			
+			
+			return 0;
+		}
 
 		if (command == "listjedi") {
 			player->sendSystemMessage("Please wait. This may take a while.");

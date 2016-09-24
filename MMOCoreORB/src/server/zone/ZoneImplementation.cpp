@@ -167,6 +167,28 @@ void ZoneImplementation::inRange(QuadTreeEntry* entry, float range) {
 	quadTree->safeInRange(entry, range);
 }
 
+int ZoneImplementation::getInRangeSolidObjects(float x, float y, float range, SortedVector<ManagedReference<QuadTreeEntry*> >* objects, bool readLockZone) {
+	bool readlock = readLockZone && !_this.getReferenceUnsafeStaticCast()->isLockedByCurrentThread();
+
+	try {
+		_this.getReferenceUnsafeStaticCast()->rlock(readlock);
+		
+		quadTree->inRange(x, y, range, *objects);
+		
+		_this.getReferenceUnsafeStaticCast()->runlock(readlock);
+	} catch (...) {
+		_this.getReferenceUnsafeStaticCast()->runlock(readlock);
+	}
+	
+	for (int i = objects->size()-1; i >= 0; i--) {
+		SceneObject* sceneObject = cast<SceneObject*>(objects->get(i).get());
+		CreatureObject* creo = dynamic_cast<CreatureObject*>(sceneObject);
+		if (creo)
+			objects->remove(i);
+	}
+	return objects->size();
+}
+
 int ZoneImplementation::getInRangeObjects(float x, float y, float range, SortedVector<ManagedReference<QuadTreeEntry*> >* objects, bool readLockZone) {
 	bool readlock = readLockZone && !_this.getReferenceUnsafeStaticCast()->isLockedByCurrentThread();
 

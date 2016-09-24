@@ -25,10 +25,13 @@ include server.zone.objects.region.events.CityUpdateEvent;
 include server.zone.objects.region.events.CitizenAssessmentEvent;
 include server.zone.objects.region.CityStructureInventory;
 include system.thread.atomic.AtomicInteger;
+include pathfinding.RecastNavMesh;
 import system.thread.Mutex;
 
 @lua
 class CityRegion extends ManagedObject implements Logger {
+
+	protected RecastNavMesh navmesh;
 
 	protected byte cityRank;
 
@@ -158,6 +161,8 @@ class CityRegion extends ManagedObject implements Logger {
 	public native void initialize();
 	public native void initializeTransientMembers();
 
+	public native void createInitialNavmesh();
+
 	/**
 	 * Gets called when this objects is loaded from database
 	 * @pre { this locked }
@@ -234,6 +239,18 @@ class CityRegion extends ManagedObject implements Logger {
 	@dirty
 	public boolean hasAssessmentPending() {
 		return assessmentPending;
+	}
+
+	@local
+	@dirty
+	public RecastNavMesh getNavMesh() {
+		return navmesh;
+	}
+
+	@local
+	@dirty
+	public void setNavMesh(RecastNavMesh mesh) {
+		navmesh = mesh;
 	}
 
 	@preLocked
