@@ -21,7 +21,7 @@ public:
 	
 	virtual void read(IffStream *iff);
 	
-	const AABB& getBoundingBox() {
+	const AABB& getBoundingBox() const {
 		return bbox;
 	}
 	

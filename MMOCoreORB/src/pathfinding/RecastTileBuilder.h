@@ -19,22 +19,35 @@
 #ifndef RECASTTILEBUILDER_H_
 #define RECASTTILEBUILDER_H_
 #include "engine/engine.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/Recast.h"
-#include "terrain/layer/boundaries/BoundaryPolygon.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/Recast.h"
+
 #include "RecastPolygon.h"
 class MeshData;
 class dtNavMeshQuery;
 class BoundaryPolygon;
 struct rcChunkyTriMesh;
 
-class RecastTileBuilder : public Logger
-{
+static const int NAVMESHSET_MAGIC = 'M'<<24 | 'S'<<16 | 'E'<<8 | 'T'; //'MSET';
+static const int NAVMESHSET_VERSION = 1;
 
-protected:
-	bool m_keepInterResults;
-	bool m_buildAll;
-	float m_totalBuildTimeMs;
+struct NavMeshSetHeader
+{
+	int magic;
+	int version;
+	int numTiles;
+	dtNavMeshParams params;
+};
+
+struct NavMeshTileHeader
+{
+	dtTileRef tileRef;
+	int dataSize;
+};
+
+
+class RecastSettings {
+public:
 	float m_cellHeight;
 	float m_agentHeight;
 	float m_agentRadius;
@@ -47,7 +60,21 @@ protected:
 	float m_vertsPerPoly;
 	float m_detailSampleDist;
 	float m_detailSampleMaxError;
+	float m_tileSize;
+	float m_cellSize;
 	int m_partitionType;
+	RecastSettings();
+};
+
+class RecastTileBuilder : public Logger
+{
+
+protected:
+	bool m_keepInterResults;
+	bool m_buildAll;
+	float m_totalBuildTimeMs;
+
+	RecastSettings settings;
 	rcContext* m_ctx;
 	const rcChunkyTriMesh* chunkyMesh;
 	
@@ -62,12 +89,8 @@ protected:
 	
 	int m_maxTiles;
 	int m_maxPolysPerTile;
-	float m_tileSize;
-	float m_cellSize;
 	Reference<MeshData*> m_geom;
 	AABB bounds;
-	
-	dtNavMeshQuery* m_navQuery;
 	int m_tileTriCount;
 	
 	unsigned char* buildTileMesh(const int tx, const int ty, int& dataSize);
@@ -84,7 +107,7 @@ public:
 	AABB lastTileBounds;
 	void saveAll(const String& file);
 	
-	RecastTileBuilder(float waterTableHeight, float x, float y, const AABB& bounds, const rcChunkyTriMesh* mesh);
+	RecastTileBuilder(float waterTableHeight, float x, float y, const AABB& bounds, const rcChunkyTriMesh* mesh, const RecastSettings& settings);
 	
 	virtual ~RecastTileBuilder();
 	

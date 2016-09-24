@@ -6,45 +6,30 @@
  */
 
 #include "RecastNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/Recast.h"
 
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
 
 
-
-static const int NAVMESHSET_MAGIC = 'M'<<24 | 'S'<<16 | 'E'<<8 | 'T'; //'MSET';
-static const int NAVMESHSET_VERSION = 1;
-
-struct NavMeshSetHeader
-{
-	int magic;
-	int version;
-	int numTiles;
-	dtNavMeshParams params;
-};
-
-struct NavMeshTileHeader
-{
-	dtTileRef tileRef;
-	int dataSize;
-};
 
 RecastNavMesh::RecastNavMesh(String filename) : Logger("RecastNavMesh") {
-	
+	navMesh = NULL;
+	loadAll(filename);
+	this->filename = filename;
 }
 
 void RecastNavMesh::loadAll(String filename)
 {
 	File file(filename);
-	
-	if (!file.exists())
-		return;
-	
 	FileInputStream stream(&file);
 	
+	if (!file.exists()) {
+		info("File does not exist " + filename, true);
+		return;
+	}
+	
 	// Read header.
-	NavMeshSetHeader header;
 	int size = sizeof(NavMeshSetHeader);
 	
 	if(stream.read((byte*)&header, size) != size) {
