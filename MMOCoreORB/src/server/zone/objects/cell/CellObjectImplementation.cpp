@@ -220,3 +220,12 @@ void CellObjectImplementation::sendPermissionsTo(CreatureObject* creature, bool 
 		creature->sendMessage(perm);
 	}
 }
+
+Vector<Reference<MeshData*> > ClientCell::getTransformedMeshData(Matrix4* parentTransform) {
+	
+	Vector<Reference<MeshData*> > data;
+	
+	data.addAll(appearance->getAppearanceTemplate()->getTransformedMeshData(*parentTransform));
+	
+	return data;
+}

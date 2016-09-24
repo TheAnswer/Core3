@@ -117,4 +117,8 @@ class CellObject extends SceneObject {
 	public boolean isCellObject() {
 		return true;
 	}
+
+	@local
+	@dereferenced
+	public abstract native Vector<Reference<MeshData> > getTransformedMeshData(Matrix4 parentTransform);
 }

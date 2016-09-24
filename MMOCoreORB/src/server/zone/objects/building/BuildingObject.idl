@@ -445,5 +445,9 @@ class BuildingObject extends StructureObject {
 	 */
 	@local
 	@preLocked
-	public native void changeSign( SignTemplate signConfig );	
+	public native void changeSign( SignTemplate signConfig );
+
+	@local
+	@dereferenced
+	public abstract native Vector<Reference<MeshData> > getTransformedMeshData(Matrix4 parentTransform);
 }

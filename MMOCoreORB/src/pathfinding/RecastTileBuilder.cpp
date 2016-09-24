@@ -16,13 +16,11 @@
 // 3. This notice may not be removed or altered from any source distribution.
 //
 
-#include "RecastNavMeshBuilder.h"
 #include "RecastTileBuilder.h"
-
-#include "recast/Recast.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/DetourNavMeshBuilder.h"
-#include "recast/DetourNavMeshQuery.h"
+#include "pathfinding/recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/DetourNavMeshBuilder.h"
+#include "pathfinding/recast/DetourNavMeshQuery.h"
 #include "templates/appearance/MeshData.h"
 #include "ChunkyTriMesh.h"
 
@@ -50,8 +48,7 @@ inline unsigned int ilog2(unsigned int v)
 	return r;
 }
 
-RecastNavMeshBuilder::RecastNavMeshBuilder(float waterTableHeight, String name) :
-Logger(name),
+RecastTileBuilder::RecastTileBuilder(float waterTableHeight, float x, float y, const AABB& bounds, const rcChunkyTriMesh* mesh) :
 m_keepInterResults(false),
 m_buildAll(true),
 m_totalBuildTimeMs(0),
@@ -66,9 +63,9 @@ m_maxPolysPerTile(0),
 m_tileSize(192.0f),
 m_cellSize(0.15f),
 bounds(Vector3(0, 0, 0), Vector3(0, 0, 0)),
-lastTileBounds(Vector3(0, 0, 0), Vector3(0, 0, 0)),
 m_tileTriCount(0),
-waterTableHeight(waterTableHeight)
+waterTableHeight(waterTableHeight),
+lastTileBounds(bounds)
 {
 	
 	m_cellSize = 0.115;			//buildSettings->cellSize;
@@ -85,23 +82,20 @@ waterTableHeight(waterTableHeight)
 	m_detailSampleDist = 3;		//buildSettings->detailSampleDist;
 	m_detailSampleMaxError = 2;	//buildSettings->detailSampleMaxError;
 	m_partitionType = 0;		//buildSettings->partitionType;
-	m_navMesh = NULL;
-	m_navQuery = NULL;
+	tileX = x;
+	tileY = y;
 	m_ctx = new rcContext();
+	chunkyMesh = mesh;
 }
 
-RecastNavMeshBuilder::~RecastNavMeshBuilder()
+RecastTileBuilder::~RecastTileBuilder()
 {
 	m_geom = NULL;
 	cleanup();
-	dtFreeNavMesh(m_navMesh);
-	m_navMesh = 0;
-	dtFreeNavMeshQuery(m_navQuery);
-	m_navQuery = 0;
 	delete m_ctx;
 }
 
-void RecastNavMeshBuilder::cleanup()
+void RecastTileBuilder::cleanup()
 {
 	delete [] m_triareas;
 	m_triareas = 0;
@@ -135,133 +129,8 @@ struct NavMeshTileHeader
 	int dataSize;
 };
 
-void RecastNavMeshBuilder::saveAll(const String& path)
+unsigned char* RecastTileBuilder::build(float x, float y, const AABB& lastTileBounds, int& dataSize)
 {
-	const dtNavMesh* mesh = m_navMesh;
-	if (!mesh) return;
-	
-	FILE* fp = fopen(path.toCharArray(), "wb");
-	if (!fp)
-		return;
-	
-	// Store header.
-	NavMeshSetHeader header;
-	header.magic = NAVMESHSET_MAGIC;
-	header.version = NAVMESHSET_VERSION;
-	header.numTiles = 0;
-	for (int i = 0; i < mesh->getMaxTiles(); ++i)
-	{
-		const dtMeshTile* tile = mesh->getTile(i);
-		if (!tile || !tile->header || !tile->dataSize) continue;
-		header.numTiles++;
-	}
-	memcpy(&header.params, mesh->getParams(), sizeof(dtNavMeshParams));
-	fwrite(&header, sizeof(NavMeshSetHeader), 1, fp);
-	
-	// Store tiles.
-	for (int i = 0; i < mesh->getMaxTiles(); ++i)
-	{
-		const dtMeshTile* tile = mesh->getTile(i);
-		if (!tile || !tile->header || !tile->dataSize) continue;
-		
-		NavMeshTileHeader tileHeader;
-		tileHeader.tileRef = mesh->getTileRef(tile);
-		tileHeader.dataSize = tile->dataSize;
-		fwrite(&tileHeader, sizeof(tileHeader), 1, fp);
-		
-		fwrite(tile->data, tile->dataSize, 1, fp);
-	}
-	
-	fclose(fp);
-}
-
-//void Sample_TileMesh::handleSettings()
-//{
-//	Sample::handleCommonSettings();
-//	
-//	if (imguiCheck("Keep Itermediate Results", m_keepInterResults))
-//		m_keepInterResults = !m_keepInterResults;
-//	
-//	if (imguiCheck("Build All Tiles", m_buildAll))
-//		m_buildAll = !m_buildAll;
-//	
-//	imguiLabel("Tiling");
-//	imguiSlider("TileSize", &m_tileSize, 16.0f, 1024.0f, 16.0f);
-//	
-//	if (m_geom)
-//	{
-//		char text[64];
-//		int gw = 0, gh = 0;
-//		const float* bmin = m_geom->getNavMeshBoundsMin();
-//		const float* bmax = m_geom->getNavMeshBoundsMax();
-//		rcCalcGridSize(bmin, bmax, m_cellSize, &gw, &gh);
-//		const int ts = (int)m_tileSize;
-//		const int tw = (gw + ts-1) / ts;
-//		const int th = (gh + ts-1) / ts;
-//		snprintf(text, 64, "Tiles  %d x %d", tw, th);
-//		imguiValue(text);
-//		
-//		// Max tiles and max polys affect how the tile IDs are caculated.
-//		// There are 22 bits available for identifying a tile and a polygon.
-//		int tileBits = rcMin((int)ilog2(nextPow2(tw*th)), 14);
-//		if (tileBits > 14) tileBits = 14;
-//		int polyBits = 22 - tileBits;
-//		m_maxTiles = 1 << tileBits;
-//		m_maxPolysPerTile = 1 << polyBits;
-//		snprintf(text, 64, "Max Tiles  %d", m_maxTiles);
-//		imguiValue(text);
-//		snprintf(text, 64, "Max Polys  %d", m_maxPolysPerTile);
-//		imguiValue(text);
-//	}
-//	else
-//	{
-//		m_maxTiles = 0;
-//		m_maxPolysPerTile = 0;
-//	}
-//	
-//	imguiSeparator();
-//	
-//	imguiIndent();
-//	imguiIndent();
-//	
-//	if (imguiButton("Save"))
-//	{
-//		saveAll("all_tiles_navmesh.bin", m_navMesh);
-//	}
-//	
-//	if (imguiButton("Load"))
-//	{
-//		dtFreeNavMesh(m_navMesh);
-//		m_navMesh = loadAll("all_tiles_navmesh.bin");
-//		m_navQuery->init(m_navMesh, 2048);
-//	}
-//	
-//	imguiUnindent();
-//	imguiUnindent();
-//	
-//	char msg[64];
-//	snprintf(msg, 64, "Build Time: %.1fms", m_totalBuildTimeMs);
-//	imguiLabel(msg);
-//	
-//	imguiSeparator();
-//	
-//	imguiSeparator();
-//	
-//}
-
-
-bool RecastNavMeshBuilder::build()
-{
-	
-	dtFreeNavMesh(m_navMesh);
-	dtFreeNavMeshQuery(m_navQuery);
-	
-	m_navMesh = dtAllocNavMesh();
-	if (!m_navMesh)
-	{
-		error("buildTiledNavigation: Could not allocate navmesh.");
-		return false;
-	}
 	
 	int gw = 0, gh = 0;
 	
@@ -302,73 +171,53 @@ bool RecastNavMeshBuilder::build()
 	params.maxPolys = m_maxPolysPerTile;
 	
 	dtStatus status;
-	
-	m_navQuery = dtAllocNavMeshQuery();
-	status = m_navMesh->init(&params);
-	if (dtStatusFailed(status))
-	{
-		error("buildTiledNavigation: Could not init navmesh.");
-		return false;
-	}
-	
-	status = m_navQuery->init(m_navMesh, 8192);
-	if (dtStatusFailed(status))
-	{
-		error("buildTiledNavigation: Could not init Detour navmesh query");
-		return false;
-	}
-	
-	if (m_buildAll)
-		buildAllTiles();
-	
-	return true;
+	this->lastTileBounds = lastTileBounds;
+	return buildTileMesh(x, y, dataSize);
 }
 
 
 
-void RecastNavMeshBuilder::buildTile(const Vector3& pos)
-{
-	if (!m_geom) return;
-	if (!m_navMesh) return;
-	
-	const Vector3& bmin = *bounds.getMinBound();
-	const Vector3& bmax = *bounds.getMaxBound();
-	
-	const float ts = m_tileSize*m_cellSize;
-	const int tx = (int)((pos.getX() - bmin.getX()) / ts);
-	const int ty = (int)((pos.getZ() - bmin.getZ()) / ts);
-	
-	float minx = bmin[0] + tx*ts;
-	float miny = bmin[1];
-	float minz = bmin[2] + ty*ts;
-	
-	float maxx = bmin[0] + (tx+1)*ts;
-	float maxy = bmax[1];
-	float maxz = bmin[2] + (ty+1)*ts;
-	
-	lastTileBounds = AABB(Vector3(minx, miny, minz), Vector3(maxx, maxy, maxz));
-	
-	m_ctx->resetLog();
-	
-	int dataSize = 0;
-	unsigned char* data = buildTileMesh(tx, ty, dataSize);
-	
-	// Remove any previous data (navmesh owns and deletes the data).
-	m_navMesh->removeTile(m_navMesh->getTileRefAt(tx,ty,0),0,0);
-	
-	// Add tile, or leave the location empty.
-	if (data)
-	{
-		// Let the navmesh own the data.
-		dtStatus status = m_navMesh->addTile(data,dataSize,DT_TILE_FREE_DATA,0,0);
-		if (dtStatusFailed(status))
-			dtFree(data);
-	}
-	
-	//m_ctx->dumpLog("Build Tile (%d,%d):", tx,ty);
-}
+//void RecastTileBuilder::buildTile(const Vector3& pos)
+//{
+//	
+//	const Vector3& bmin = *bounds.getMinBound();
+//	const Vector3& bmax = *bounds.getMaxBound();
+//	
+//	const float ts = m_tileSize*m_cellSize;
+//	const int tx = (int)((pos.getX() - bmin.getX()) / ts);
+//	const int ty = (int)((pos.getZ() - bmin.getZ()) / ts);
+//	
+//	float minx = bmin[0] + tx*ts;
+//	float miny = bmin[1];
+//	float minz = bmin[2] + ty*ts;
+//	
+//	float maxx = bmin[0] + (tx+1)*ts;
+//	float maxy = bmax[1];
+//	float maxz = bmin[2] + (ty+1)*ts;
+//	
+//	lastTileBounds = AABB(Vector3(minx, miny, minz), Vector3(maxx, maxy, maxz));
+//	
+//	m_ctx->resetLog();
+//	
+//	int dataSize = 0;
+//	unsigned char* data = buildTileMesh(tx, ty, dataSize);
+//	
+//	// Remove any previous data (navmesh owns and deletes the data).
+//	m_navMesh->removeTile(m_navMesh->getTileRefAt(tx,ty,0),0,0);
+//	
+//	// Add tile, or leave the location empty.
+//	if (data)
+//	{
+//		// Let the navmesh own the data.
+//		dtStatus status = m_navMesh->addTile(data,dataSize,DT_TILE_FREE_DATA,0,0);
+//		if (dtStatusFailed(status))
+//			dtFree(data);
+//	}
+//	
+//	//m_ctx->dumpLog("Build Tile (%d,%d):", tx,ty);
+//}
 
-void RecastNavMeshBuilder::getTilePos(const Vector3& pos, int& tx, int& ty)
+void RecastTileBuilder::getTilePos(const Vector3& pos, int& tx, int& ty)
 {
 	if (!m_geom) return;
 	
@@ -378,147 +227,8 @@ void RecastNavMeshBuilder::getTilePos(const Vector3& pos, int& tx, int& ty)
 	tx = (int)((pos.getX() - bmin.getX()) / ts);
 	ty = (int)((pos.getZ() - bmin.getZ()) / ts);
 }
-static AtomicInteger threadLimiter;
 
-void RecastNavMeshBuilder::buildAllTiles()
-{
-	if (!m_geom) return;
-	if (!m_navMesh) return;
-	
-	const Vector<Vector3>* vertArray = m_geom->getVerts();
-	const Vector<MeshTriangle>* triArray = m_geom->getTriangles();
-	
-	const int nverts = vertArray->size();
-	float* verts = new float[nverts*3];//m_geom->getMesh()->getVerts();
-	
-	int* tris = new int[triArray->size()*3];
-	for(int i=0; i<nverts; i++) {
-		const Vector3& vert = vertArray->get(i);
-		verts[i*3+0] = vert.getX();
-		verts[i*3+1] = vert.getY();
-		verts[i*3+2] = vert.getZ();
-	}
-	
-	for(int i=0; i<triArray->size(); i++) {
-		memcpy(tris+(i*3), triArray->get(i).getVerts(), sizeof(int)*3);
-	}
-	
-	float bmin[3];
-	float bmax[3];
-	
-	bmin[0] = bounds.getXMin();
-	bmin[1] = bounds.getYMin();
-	bmin[2] = bounds.getZMin();
-	
-	
-	bmax[0] = bounds.getXMax();
-	bmax[1] = bounds.getYMax();
-	bmax[2] = bounds.getZMax();
-	int gw = 0, gh = 0;
-	rcCalcGridSize(bmin, bmax, m_cellSize, &gw, &gh);
-	const int ts = (int)m_tileSize;
-	const int tw = (gw + ts-1) / ts;
-	const int th = (gh + ts-1) / ts;
-	const float tcs = m_tileSize*m_cellSize;
-	
-	rcChunkyTriMesh mesh;
-	rcCreateChunkyTriMesh(verts, tris, triArray->size(), 256, &mesh);
-	const rcChunkyTriMesh* chunkyMesh = &mesh;
-	// Start the build process.
-
-	AtomicInteger jobStatus;
-	AtomicInteger progress;
-	
-	
-	for (int y = 0; y < th; ++y)
-	{
-//		while(threadLimiter.get() > 8)
-//			Thread::sleep(1000);
-//		
-//		threadLimiter.increment();
-		
-		jobStatus.increment();
-		Core::getTaskManager()->executeTask([=, &jobStatus, &progress]{
-			RecastTileBuilder builder(waterTableHeight, 0, y, lastTileBounds, chunkyMesh);
-			
-			builder.changeMesh(m_geom);
-			for (int x = 0; x < tw; ++x)
-			{
-				
-				float minx = bmin[0] + x*tcs;
-				float miny = bmin[1];
-				float minz = bmin[2] + y*tcs;
-				
-				float maxx = bmin[0] + (x+1)*tcs;
-				float maxy = bmax[1];
-				float maxz = bmin[2] + (y+1)*tcs;
-				lastTileBounds = AABB(Vector3(minx, miny, minz), Vector3(maxx, maxy, maxz));
-				
-				for(auto& a : water)
-					builder.addWater(a);
-				int dataSize = 0;
-				unsigned char* data = builder.build(x, y, lastTileBounds, dataSize);//buildTileMesh(x, y, dataSize);
-				if (data)
-				{
-					// Remove any previous data (navmesh owns and deletes the data).
-					m_navMesh->removeTile(m_navMesh->getTileRefAt(x,y,0),0,0);
-					// Let the navmesh own the data.
-					dtStatus status = m_navMesh->addTile(data,dataSize,DT_TILE_FREE_DATA,0,0);
-					if (dtStatusFailed(status))
-						dtFree(data);
-				}
-				
-				
-			}
-			jobStatus.decrement();
-			progress.add(tw);
-			
-			//threadLimiter.decrement();
-			info("Generating tiles: " + String::valueOf(progress.get()*100 / (th*tw)) +"% complete", true);
-		}, "threadStuff");
-	}
-
-
-	while(jobStatus.get())
-		Thread::sleep(500);
-
-//	// Start the build process.
-//	m_ctx->stopTimer(RC_TIMER_TEMP);
-//	
-//	m_totalBuildTimeMs = m_ctx->getAccumulatedTime(RC_TIMER_TEMP)/1000.0f;
-	
-}
-
-void RecastNavMeshBuilder::removeAllTiles()
-{
-	if (!m_geom || !m_navMesh)
-		return;
-	
-	float bmin[3];
-	float bmax[3];
-	
-	bmin[0] = bounds.getXMin();
-	bmin[1] = bounds.getYMin();
-	bmin[2] = bounds.getZMin();
-	
-	
-	bmax[0] = bounds.getXMax();
-	bmax[1] = bounds.getYMax();
-	bmax[2] = bounds.getZMax();
-	
-	int gw = 0, gh = 0;
-	rcCalcGridSize(bmin, bmax, m_cellSize, &gw, &gh);
-	const int ts = (int)m_tileSize;
-	const int tw = (gw + ts-1) / ts;
-	const int th = (gh + ts-1) / ts;
-	
-	for (int y = 0; y < th; ++y)
-		for (int x = 0; x < tw; ++x)
-			m_navMesh->removeTile(m_navMesh->getTileRefAt(x,y,0),0,0);
-}
-
-
-unsigned char* RecastNavMeshBuilder::buildTileMesh(const int tx, const int ty, int& dataSize)
+unsigned char* RecastTileBuilder::buildTileMesh(const int tx, const int ty, int& dataSize)
 {
 	const Vector3& bmin = *lastTileBounds.getMinBound();
 	const Vector3& bmax = *lastTileBounds.getMaxBound();
@@ -612,45 +322,89 @@ unsigned char* RecastNavMeshBuilder::buildTileMesh(const int tx, const int ty, i
 		error("buildNavigation: Could not create solid heightfield.");
 		return 0;
 	}
+//	
+//
+//	
+//	float tbmin[2], tbmax[2];
+//	tbmin[0] = m_cfg.bmin[0];
+//	tbmin[1] = m_cfg.bmin[2];
+//	tbmax[0] = m_cfg.bmax[0];
+//	tbmax[1] = m_cfg.bmax[2];
+//	AABB aabb(Vector3(tbmin[0], -100000, tbmin[1]), Vector3(tbmax[0], 100000, tbmax[1]));
+//	Vector<MeshTriangle>* triangles = m_geom->getMeshWithinBounds(aabb);
+//	
+//	// Allocate array that can hold triangle flags.
+//	// If you have multiple meshes you need to process, allocate
+//	// and array which can hold the max number of triangles you need to process.
+//	m_triareas = new unsigned char[triangles->size()];
+//	memset(m_triareas, 0, triangles->size());
+//	
+//	if (!m_triareas)
+//	{
+//		error("buildNavigation: Out of memory 'm_triareas'");
+//		return 0;
+//	}
+//	
+//	int* tris = new int[triangles->size()*3];
+//	for(int i=0; i<triangles->size(); i++) {
+//		const MeshTriangle& triangle = triangles->get(i);
+//		const int* indicies = triangle.getVerts();
+//		
+//		tris[i*3+0] = indicies[0];
+//		tris[i*3+1] = indicies[1];
+//		tris[i*3+2] = indicies[2];
+//	}
+//	rcMarkWalkableTriangles(m_ctx, m_cfg.walkableSlopeAngle, verts, nverts, tris, triangles->size(), m_triareas);
+//	if (!rcRasterizeTriangles(m_ctx, verts, nverts, tris, m_triareas, triangles->size(), *m_solid, m_cfg.walkableClimb))
+//		return 0;
+//	
+//	delete triangles;
+//	delete[] m_triareas;
+//	m_triareas = 0;
 	
-
+	// Allocate array that can hold triangle flags.
+	// If you have multiple meshes you need to process, allocate
+	// and array which can hold the max number of triangles you need to process.
+	m_triareas = new unsigned char[chunkyMesh->maxTrisPerChunk];
+	if (!m_triareas)
+	{
+		m_ctx->log(RC_LOG_ERROR, "buildNavigation: Out of memory 'm_triareas' (%d).", chunkyMesh->maxTrisPerChunk);
+		return 0;
+	}
 	
 	float tbmin[2], tbmax[2];
 	tbmin[0] = m_cfg.bmin[0];
 	tbmin[1] = m_cfg.bmin[2];
 	tbmax[0] = m_cfg.bmax[0];
 	tbmax[1] = m_cfg.bmax[2];
-	AABB aabb(Vector3(tbmin[0], -100000, tbmin[1]), Vector3(tbmax[0], 100000, tbmax[1]));
-	Vector<MeshTriangle>* triangles = m_geom->getMeshWithinBounds(aabb);
+	int cid[512];// TODO: Make grow when returning too many items.
+	const int ncid = rcGetChunksOverlappingRect(chunkyMesh, tbmin, tbmax, cid, 512);
+	if (!ncid)
+		return 0;
 	
-	// Allocate array that can hold triangle flags.
-	// If you have multiple meshes you need to process, allocate
-	// and array which can hold the max number of triangles you need to process.
-	m_triareas = new unsigned char[triangles->size()];
-	memset(m_triareas, 0, triangles->size());
+	m_tileTriCount = 0;
 	
-	if (!m_triareas)
+	for (int i = 0; i < ncid; ++i)
 	{
-		error("buildNavigation: Out of memory 'm_triareas'");
-		return 0;
-	}
-	
-	int* tris = new int[triangles->size()*3];
-	for(int i=0; i<triangles->size(); i++) {
-		const MeshTriangle& triangle = triangles->get(i);
-		const int* indicies = triangle.getVerts();
+		const rcChunkyTriMeshNode& node = chunkyMesh->nodes[cid[i]];
+		const int* ctris = &chunkyMesh->tris[node.i*3];
+		const int nctris = node.n;
 		
-		tris[i*3+0] = indicies[0];
-		tris[i*3+1] = indicies[1];
-		tris[i*3+2] = indicies[2];
+		m_tileTriCount += nctris;
+		
+		memset(m_triareas, 0, nctris*sizeof(unsigned char));
+		rcMarkWalkableTriangles(m_ctx, m_cfg.walkableSlopeAngle,
+								verts, nverts, ctris, nctris, m_triareas);
+		
+		if (!rcRasterizeTriangles(m_ctx, verts, nverts, ctris, m_triareas, nctris, *m_solid, m_cfg.walkableClimb))
+			return 0;
 	}
-	rcMarkWalkableTriangles(m_ctx, m_cfg.walkableSlopeAngle, verts, nverts, tris, triangles->size(), m_triareas);
-	if (!rcRasterizeTriangles(m_ctx, verts, nverts, tris, m_triareas, triangles->size(), *m_solid, m_cfg.walkableClimb))
-		return 0;
 	
-	delete triangles;
-	delete[] m_triareas;
-	m_triareas = 0;
+	if (!m_keepInterResults)
+	{
+		delete [] m_triareas;
+		m_triareas = 0;
+	}
 	
 	// Once all geometry is rasterized, we do initial pass of filtering to
 	// remove unwanted overhangs caused by the conservative rasterization
@@ -909,12 +663,9 @@ unsigned char* RecastNavMeshBuilder::buildTileMesh(const int tx, const int ty, i
 	return navData;
 }
 
-void RecastNavMeshBuilder::changeMesh(MeshData* geom)
+void RecastTileBuilder::changeMesh(MeshData* geom)
 {	
 	cleanup();
-	
-	dtFreeNavMesh(m_navMesh);
-	m_navMesh = 0;
 	
 	m_geom = geom;
 	bounds = geom->buildAABB();
