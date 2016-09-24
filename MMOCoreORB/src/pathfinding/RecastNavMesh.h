@@ -14,9 +14,21 @@ class dtNavMesh;
 class RecastNavMesh : public Object, Logger {
 	void loadAll(String filename);
 	dtNavMesh *navMesh;
+	Vector3 position;
 	
 public:
 	RecastNavMesh(String filename);
+	
+	void setPosition(Vector3& newPos) {
+		position = newPos;
+	}
+	
+	const Vector3& getPosition() {
+		return position;
+	}
+	bool isLoaded() {
+		return navMesh != NULL;
+	}
 };
 
 
