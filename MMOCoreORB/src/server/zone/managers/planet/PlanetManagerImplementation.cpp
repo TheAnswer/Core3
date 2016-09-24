@@ -46,8 +46,52 @@
 #include "server/zone/managers/structure/StructureManager.h"
 #include "terrain/layer/boundaries/BoundaryRectangle.h"
 
+#include "pathfinding/RecastNavMeshBuilder.h"
+#include "terrain/layer/boundaries/BoundaryPolygon.h"
+
 ClientPoiDataTable PlanetManagerImplementation::clientPoiDataTable;
 Mutex PlanetManagerImplementation::poiMutex;
+
+void dumpOBJ(String filename, Vector<Reference<MeshData*> > data) {
+	
+	File file(filename);
+	FileOutputStream outputStream(&file);
+	
+	for(int x=0; x<data.size(); x++) {
+		MeshData *mesh = data.get(x);
+		Vector<Vector3> *verts = mesh->getVerts();
+		Vector<MeshTriangle> *tris = mesh->getTriangles();
+		
+		for (int i=0; i<verts->size(); i++) {
+			Vector3& vert = verts->get(i);
+			float xPos = vert.getX();
+			float yPos = vert.getY();
+			float zPos = vert.getZ();
+			outputStream.write("v " + String::valueOf(xPos) +  " " + String::valueOf(yPos)+ " " + String::valueOf(zPos) +"\n");
+		}
+	}
+	
+	int lastIndex = 1;
+	for(int x=0; x<data.size(); x++) {
+		MeshData *mesh = data.get(x);
+		Vector<Vector3> *verts = mesh->getVerts();
+		Vector<MeshTriangle> *tris = mesh->getTriangles();
+		
+		for (int i=0; i<tris->size(); i++) {
+			MeshTriangle& tri = tris->get(i);
+			outputStream.write("f " + String::valueOf(lastIndex+tri.getVerts()[0]) + " " + String::valueOf(lastIndex+tri.getVerts()[1]) + " " + String::valueOf(lastIndex+tri.getVerts()[2])+"\n");
+		}
+		lastIndex += verts->size();
+		
+	}
+	outputStream.flush();
+	file.close();
+}
+
+Vector<Reference<NavmeshRegion*> > PlanetManagerImplementation::getNavMeshes() {
+	return navmeshes;
+}
+
 
 void PlanetManagerImplementation::initialize() {
 	performanceLocations = new MissionTargetMap();
@@ -117,7 +161,183 @@ void PlanetManagerImplementation::initialize() {
 		preArea->initializePosition(-6174, 0, -3361);
 		zone->transferObject(preArea, -1, true);
 	}
+	
+	AtomicInteger numActiveThreads;
+	for (int i=0; i<navmeshesToBuild.size(); i++) {
+		//Core::getTaskManager()->executeTask([=] {
+			
+		Reference<NavmeshRegion*> region = navmeshesToBuild.get(i);
+		
+		if(region->sceneData.size() > 0) {
+			Vector3 center;
+			
+			float minx = 30000;
+			float miny = 30000;
+			float minz = 30000;
+			
+			float maxx = -30000;
+			float maxy = -30000;
+			float maxz = -30000;
+			
+			
+			// Build Extents (Always Square)
+			for( int s=0; s<region->regionBounds.size(); s++) {
+				
+				const Sphere& sphere = region->regionBounds.get(s);
+				const float& radius = sphere.getRadius();
+				const Vector3& vert = sphere.getCenter();
+				const float& x = vert.getX();
+				const float& y = vert.getY();
+				const float& z = vert.getZ();
+				
+				if (x+radius > maxx)
+					maxx = x+radius;
+				
+				if (y+radius > maxy)
+					maxy = y+radius;
+				
+				if (z+radius > maxz)
+					maxz = z+radius;
+				
+				if (x-radius < minx)
+					minx = x-radius;
+				
+				if (y-radius < miny)
+					miny = y-radius;
+				
+				if (z-radius < minz)
+					minz = z-radius;
+			}
+			
+			AABB box(Vector3(minx, miny, minz), Vector3(maxx, maxy, maxz));
+			
+			
+			center = box.center();
+			
+			Vector3 extents = box.extents();
+			
+			float longest = extents.getX();
+			if(extents.getY() > longest)
+				longest = extents.getY();
+			if(extents.getZ() > longest)
+				longest = extents.getZ();
+			
+			box = AABB(Vector3(center.getX()-longest, center.getY()-longest, center.getZ()-longest),
+					   Vector3(center.getX()+longest, center.getY()+longest, center.getZ()+longest));
+			
+			String filename = region->name;
+			filename = filename.subString(filename.lastIndexOf(':')+1);
+			
+			RecastNavMeshBuilder *builder = new RecastNavMeshBuilder(zone, region->name);
+			
+			Vector3 positionTemp = center;
+			
+			builder->initialize(region->sceneData, box);
+			
+				
+			builder->build(); // This will take a very long time to complete
+			builder->saveAll(filename);
+			
+			delete builder;
+			
+			//}, "buildnavmesh");
+			
+		}
+		
+	}
+	
+	navmeshesToBuild.removeAll();
 }
+
+Reference<MeshData*> PlanetManagerImplementation::getTerrainMesh(Vector3& position, float terrainSize, float chunkSize, float distanceBetweenHeights) {
+	
+	float centerX = position.getX();
+	float centerY = position.getZ();
+	
+	float originX = centerX + (-terrainSize / 2);
+	float originY = centerY + (-terrainSize / 2);
+	
+	unsigned int numRows = static_cast<unsigned int>( terrainSize / chunkSize );
+	unsigned int numColumns = numRows;
+	
+	float oneChunkRows = chunkSize / distanceBetweenHeights + 1 ;
+	float oneChunkColumns = chunkSize / distanceBetweenHeights + 1;
+	
+	int chunkNumRows = terrainSize / chunkSize;
+	int chunkNumColumns = chunkNumRows;
+	
+	Reference<MeshData*> mesh = new MeshData();
+	
+	Vector<Vector3>* verts = mesh->getVerts();
+	Vector<MeshTriangle>* tris = mesh->getTriangles();
+	int numCells = terrainSize/distanceBetweenHeights;
+	for (int x=0; x<numCells; x++) {
+		for (int y=0; y<numCells; y++) {
+			float xPos = originX + x*distanceBetweenHeights;
+			float yPos = originY + y*distanceBetweenHeights;
+			verts->add(Vector3(xPos, terrainManager->getProceduralTerrainAppearance()->getHeight(xPos, yPos), -yPos));
+		}
+		info("Building terrain verts Row #" + String::valueOf(x*numCells));
+	}
+	
+	
+	for (int x=0; x<numCells-1; x++) {
+		for (int y=0; y<numCells-1; y++) {
+			MeshTriangle tri;
+			tri.set(0, x+y*(numCells));
+			tri.set(1, x+1 + y*(numCells));
+			tri.set(2, x+1 + (y+1) * (numCells)); // top right tri
+			
+			tris->add(tri);
+			
+			tri.set(0, x+1 + (y+1) * (numCells)); // bottom left tri
+			tri.set(1, x + (y+1) * (numCells));
+			tri.set(2, x + y * (numCells));
+			tris->add(tri);
+		}
+		info("Building terrain Tris Row #" + String::valueOf(x*numCells));
+	}
+	
+	return mesh;
+}
+
+Reference<MeshData*> PlanetManagerImplementation::flattenMeshData(Vector<Reference<MeshData*> >& data) {
+	MeshData *mesh = new MeshData();
+	Vector<Vector3>& newV = *mesh->getVerts();
+	Vector<MeshTriangle>& newT = *mesh->getTriangles();
+	
+	for(int x=0; x<data.size(); x++) {
+		MeshData *mesh = data.get(x);
+		Vector<Vector3> *verts = mesh->getVerts();
+		Vector<MeshTriangle> *tris = mesh->getTriangles();
+		
+		for (int i=0; i<verts->size(); i++) {
+			Vector3& vert = verts->get(i);
+			float xPos = vert.getX();
+			float yPos = vert.getY();
+			float zPos = vert.getZ();
+			newV.add(Vector3(xPos, yPos, zPos));
+		}
+	}
+	
+	int lastIndex = 0;
+	for(int x=0; x<data.size(); x++) {
+		
+		MeshData *mesh = data.get(x);
+		Vector<Vector3> *verts = mesh->getVerts();
+		Vector<MeshTriangle> *tris = mesh->getTriangles();
+		
+		for (int i=0; i<tris->size(); i++) {
+			MeshTriangle& tri = tris->get(i);
+			newT.add(MeshTriangle(lastIndex+tri.getVerts()[2], lastIndex+tri.getVerts()[1], lastIndex+tri.getVerts()[0]));
+		}
+		
+		lastIndex += verts->size();
+	}
+	
+	return mesh;
+}
+
 
 void PlanetManagerImplementation::start() {
 	if (gcwManager != NULL)
@@ -337,6 +557,27 @@ Reference<SceneObject*> PlanetManagerImplementation::loadSnapshotObject(WorldSna
 	if (ConfigManager::instance()->isProgressMonitorActivated())
 		printf("\r\tLoading snapshot objects: [%d] / [?]\t", totalObjects);
 
+	if (object != NULL) {
+		for (int i=0; i<navmeshesToBuild.size(); i++) {
+			
+			Reference<NavmeshRegion*> region = navmeshesToBuild.get(i);
+			for(int j=0; j<region->regionBounds.size(); j++) {
+				Sphere sphere = region->regionBounds.get(j);
+				Vector3 sPos = sphere.getCenter();
+				const Vector3 &objPos = object->getPosition();
+				Vector3 flippedPos = Vector3(objPos.getX(), objPos.getZ(), objPos.getY());
+				
+				Matrix4 identity;
+				//info("Sphere Position: " + String::valueOf(sPos.getX()) + ", " + String::valueOf(sPos.getY()) + ", " + String::valueOf(sPos.getZ()) + "\ObjectPos: " + String::valueOf(objPos.getX()) + ", " + String::valueOf(objPos.getY()) + ", " + String::valueOf(objPos.getZ()), true);
+				if((sPos-flippedPos).length() < sphere.getRadius()) {
+					region->sceneData.addAll(object->getTransformedMeshData(&identity));
+					info("Added to navmesh : " + object->getObjectTemplate()->getTemplateFileName(), true);
+				}
+			}
+			
+		}
+	}
+	
 	//Object already exists, exit.
 	if (object != NULL)
 		return NULL;
@@ -551,7 +792,9 @@ void PlanetManagerImplementation::loadClientRegions() {
 
 	DataTableIff dtiff;
 	dtiff.readObject(iffStream);
-
+	
+	HashSet<String> loadedNavRegions;
+	String zoneName = zone->getZoneName();
 	for (int i = 0; i < dtiff.getTotalRows(); ++i) {
 		String regionName;
 		float x, y, radius;
@@ -573,6 +816,40 @@ void PlanetManagerImplementation::loadClientRegions() {
 			cityRegion->setRegionName(regionName);
 			cityRegion->setZone(zone);
 			regionMap.addRegion(cityRegion);
+		}
+		
+		String filename = regionName;
+		if(filename.contains("an_outpost"))
+			filename = filename + String::valueOf(i);
+		
+		filename = filename.subString(filename.lastIndexOf(':')+1) + ".navmesh";
+		
+		if (!loadedNavRegions.contains(filename)) {
+		
+			Reference<NavmeshRegion*> region = navmeshesToBuild.get(filename);
+
+			if (region == NULL) {
+				
+				region = new NavmeshRegion(filename);
+				Reference<RecastNavMesh*> navMesh = new RecastNavMesh(filename);
+				
+				info("Attempting to load navmesh " + filename, true);
+				
+				if(navMesh->isLoaded()) {
+					loadedNavRegions.add(filename);
+					region->setNavMesh(navMesh);
+					navmeshes.add(region);
+					info("Loaded " + filename, true);
+				} else {
+					Sphere sphere(Vector3(x, terrainManager->getHeight(x, y), y), radius);
+					region->regionBounds.add(sphere);
+					navmeshesToBuild.put(filename, region);
+				}
+				
+			} else {
+				Sphere sphere(Vector3(x, terrainManager->getHeight(x, y), y), radius);
+				region->regionBounds.add(sphere);
+			}
 		}
 
 		Locker locker(cityRegion);

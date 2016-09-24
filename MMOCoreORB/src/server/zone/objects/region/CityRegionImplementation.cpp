@@ -32,6 +32,7 @@
 
 #include "server/zone/objects/creature/commands/QueueCommand.h"
 #include "server/zone/objects/creature/commands/TransferstructureCommand.h"
+#include "pathfinding/RecastNavMeshBuilder.h"
 
 int BoardShuttleCommand::MAXIMUM_PLAYER_COUNT = 3000;
 
@@ -40,6 +41,17 @@ void CityRegionImplementation::initializeTransientMembers() {
 
 	loaded = false;
 	completeStructureList.setNoDuplicateInsertPlan();
+	
+	if (zone) {
+		navmesh = new RecastNavMesh(zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh");
+		if(navmesh->isLoaded()) {
+			//navmesh = NULL;
+			rescheduleUpdateEvent(30);
+		}
+		
+	} else {
+		rescheduleUpdateEvent(30);
+	}
 }
 
 void CityRegionImplementation::notifyLoadFromDatabase() {
@@ -98,6 +110,64 @@ void CityRegionImplementation::initialize() {
 
 }
 
+void CityRegionImplementation::updateNavmesh(const AABB& bounds) {
+	
+	if(isClientRegion())
+		return;
+	
+	Zone *zone = getZone();
+	if (!zone || !isLoaded()) {
+		rescheduleUpdateEvent(15);
+		return;
+	}
+	
+	Locker locker(&navmeshBuilderLock);
+	
+	float range = getRadius();
+	String filename = zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh";
+	
+	SortedVector<ManagedReference<QuadTreeEntry*> > closeObjects;
+	zone->getInRangeSolidObjects(getPositionX(), getPositionY(), range, &closeObjects, true);
+	Matrix4 identity;
+	
+	Vector<Reference<MeshData*> > meshData;
+	
+	for (int i=0; i<closeObjects.size(); i++) {
+		SceneObject *sceno = closeObjects.get(i).castTo<SceneObject*>();
+		if(sceno)
+			meshData.addAll(sceno->getTransformedMeshData(&identity));
+	}
+	
+	
+
+	
+	RecastNavMeshBuilder *builder = NULL;
+	
+	Vector3 center(getPositionX(), 0, getPositionY());
+	Vector3 radius(470, 0, 470);
+	AABB box = AABB(center-radius, center+radius);
+	
+	builder = new RecastNavMeshBuilder(zone, filename);
+	
+	RecastSettings& settings = builder->getRecastConfig();
+	settings.m_cellSize = 0.2f;
+	settings.m_cellHeight = 0.2f;
+	settings.m_tileSize = 64.0f;
+	
+	builder->initialize(meshData, box, 4.0f);
+	// This will take a very long time to complete
+	if(navmesh != NULL && navmesh->isLoaded()) {
+		builder->rebuildArea(bounds, navmesh);
+	} else {
+		// Initial build
+		builder->build();
+	}
+	
+	builder->saveAll(filename);
+	navmesh = new RecastNavMesh(zone->getZoneName()+"_"+String::valueOf(getObjectID())+".navmesh");
+	delete builder;
+}
+
 Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool persistent) {
 	if (zone == NULL) {
 		return NULL;
@@ -117,7 +187,7 @@ Region* CityRegionImplementation::addRegion(float x, float y, float radius, bool
 	region->setRadius(radius);
 	region->initializePosition(x, 0, y);
 	region->setObjectName(regionName, false);
-
+	
 	if (isClientRegion())
 		region->setNoBuildArea(true);
 
@@ -203,6 +273,18 @@ void CityRegionImplementation::notifyEnter(SceneObject* object) {
 		creature->sendSystemMessage(params);
 
 		applySpecializationModifiers(creature);
+	} else if(object->isStructureObject() && !object->getObjectTemplate()->getTemplateFileName().contains("construction_")) {
+		
+		info(object->getObjectTemplate()->getTemplateFileName() + " caused navmesh rebuild", true);
+		Vector3 position = object->getWorldPosition();
+		const BaseBoundingVolume *volume = object->getBoundingVolume();
+		if(volume) {
+			AABB bbox = volume->getBoundingBox();
+			Core::getTaskManager()->scheduleTask([=]{
+				updateNavmesh(AABB(position-(bbox.extents()*1.75f), position+(bbox.extents()*1.75f)));
+			}, "updateCityNavmesh", 5000);
+			
+		}
 	}
 
 	if (object->isStructureObject()) {
