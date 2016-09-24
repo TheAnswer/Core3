@@ -19,8 +19,8 @@
 #ifndef RECASTTILEBUILDER_H_
 #define RECASTTILEBUILDER_H_
 #include "engine/engine.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/Recast.h"
 #include "terrain/layer/boundaries/BoundaryPolygon.h"
 #include "RecastPolygon.h"
 class MeshData;

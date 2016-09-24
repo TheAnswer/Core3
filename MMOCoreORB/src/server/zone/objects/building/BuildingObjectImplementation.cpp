@@ -51,6 +51,7 @@
 
 #include "server/zone/managers/planet/MapLocationType.h"
 #include "server/zone/objects/building/components/GCWBaseContainerComponent.h"
+#include "templates/appearance/AppearanceTemplate.h"
 
 void BuildingObjectImplementation::initializeTransientMembers() {
 	StructureObjectImplementation::initializeTransientMembers();
@@ -1663,4 +1664,34 @@ BuildingObject* BuildingObject::asBuildingObject() {
 
 BuildingObject* BuildingObjectImplementation::asBuildingObject() {
 	return _this.getReferenceUnsafeStaticCast();
+}
+
+Vector<Reference<MeshData*> > BuildingObjectImplementation::getTransformedMeshData(Matrix4* parentTransform) {
+	
+	if(getObjectTemplate()->getTemplateFileName().contains("starport")) {
+		info("found starport", true);
+	}
+	
+	Vector<Reference<MeshData*> > data;
+	
+	Matrix4 rotation;
+	rotation.setRotationMatrix(direction.toMatrix3());
+	
+	Matrix4 translation;
+	translation.setTranslation(getPositionX(), getPositionZ(), -getPositionY());
+	Matrix4 transform = rotation * translation;
+	
+	PortalLayout *pl = getObjectTemplate()->getPortalLayout();
+	if(pl) {
+		if(pl->getCellTotalNumber() > 0) {
+			AppearanceTemplate *appr = pl->getAppearanceTemplate(0);
+			data.addAll(appr->getTransformedMeshData(transform * *parentTransform));
+		}
+	}
+	
+	
+	//Vector<Reference<MeshData*> > meshes = appearance->getTransformedMeshData(transform * *parentTransform );
+	
+	data.addAll(SceneObjectImplementation::getTransformedMeshData(parentTransform));
+	return data;
 }

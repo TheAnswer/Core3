@@ -26,6 +26,7 @@ void AffectorRiver::process(float x, float y, float transformValue, float& baseV
 			
 			//FindData result;
 			float resultDistanceToCenter, resultHeight, distanceAlongPath;
+			distanceAlongPath = 0;
 			if (getHeight (x, y, width_2, resultDistanceToCenter, resultHeight, distanceAlongPath)) {
 				const float distanceToCenter = fabsf (resultDistanceToCenter);
 				const float desiredHeight    = resultHeight;

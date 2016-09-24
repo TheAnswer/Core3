@@ -19,10 +19,13 @@
 #ifndef RECASTSAMPLETILEMESH_H
 #define RECASTSAMPLETILEMESH_H
 #include "engine/engine.h"
-#include "recast/DetourNavMesh.h"
-#include "recast/Recast.h"
+#include "pathfinding/recast/DetourNavMesh.h"
+#include "pathfinding/recast/Recast.h"
 #include "terrain/layer/boundaries/BoundaryPolygon.h"
 #include "RecastPolygon.h"
+#include "server/zone/Zone.h"
+#include "terrain/manager/TerrainManager.h"
+
 
 class MeshData;
 class dtNavMeshQuery;
@@ -67,7 +70,7 @@ protected:
 	AABB lastTileBounds;
 	dtNavMeshQuery* m_navQuery;
 	int m_tileTriCount;
-	
+	String name;
 	unsigned char* buildTileMesh(const int tx, const int ty, int& dataSize);
 	
 	void cleanup();
@@ -75,16 +78,16 @@ protected:
 	
 	float waterTableHeight;
 public:
+	void initialize(Zone* zone, Vector<Reference<MeshData*> > meshData, AABB bounds);
+	
+	static Reference<MeshData*> flattenMeshData(Vector<Reference<MeshData*> >& data);
+	static void dumpOBJ(String filename, Vector<Reference<MeshData*> > data);
+	static Reference<MeshData*> getTerrainMesh(Vector3& position, float terrainSize, TerrainManager* terrainManager, float chunkSize, float distanceBetweenHeights);
 	
 	void saveAll(const String& file);
 	RecastNavMeshBuilder(float waterTableHeight, String name);
 	virtual ~RecastNavMeshBuilder();
-//	
-//	virtual void handleSettings();
-//	virtual void handleTools();
-//	virtual void handleDebugMode();
-//	virtual void handleRender();
-//	virtual void handleRenderOverlay(double* proj, double* model, int* view);
+
 	virtual void changeMesh(MeshData* geom);
 	inline void addWater(Reference<RecastPolygon*> waterBoundary) {
 		water.add(waterBoundary);
