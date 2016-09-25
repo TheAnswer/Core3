@@ -307,6 +307,7 @@ Reference<MeshData*> PlanetManagerImplementation::getTerrainMesh(Vector3& positi
 			float yPos = originY + y*distanceBetweenHeights;
 			verts->add(Vector3(xPos, terrainManager->getProceduralTerrainAppearance()->getHeight(xPos, yPos), -yPos));
 		}
+		info("Building terrain verts Row #" + String::valueOf(x*numCells));
 	}
 	
 	
@@ -324,6 +325,7 @@ Reference<MeshData*> PlanetManagerImplementation::getTerrainMesh(Vector3& positi
 			tri.set(2, x + y * (numCells));
 			tris->add(tri);
 		}
+		info("Building terrain Tris Row #" + String::valueOf(x*numCells));
 	}
 	
 	return mesh;
@@ -592,11 +594,14 @@ Reference<SceneObject*> PlanetManagerImplementation::loadSnapshotObject(WorldSna
 		for(int j=0; j<region->regionBounds.size(); j++) {
 			Sphere sphere = region->regionBounds.get(j);
 			Vector3 sPos = sphere.getCenter();
-			Vector3 objPos = object->getPosition();
+			Vector3 &objPos = object->getPosition();
+			Vector3 flippedPos = Vector3(objPos.getX(), objPos.getZ(), objPos.getY());
+			
 			Matrix4 identity;
-			info("Sphere Position: " + String::valueOf(sPos.getX()) + ", " + String::valueOf(sPos.getY()) + ", " + String::valueOf(sPos.getZ()) + "\ObjectPos: " + String::valueOf(objPos.getX()) + ", " + String::valueOf(objPos.getY()) + ", " + String::valueOf(objPos.getZ()), true);
-			if((sPos-objPos).length() < sphere.getRadius()) {
+			//info("Sphere Position: " + String::valueOf(sPos.getX()) + ", " + String::valueOf(sPos.getY()) + ", " + String::valueOf(sPos.getZ()) + "\ObjectPos: " + String::valueOf(objPos.getX()) + ", " + String::valueOf(objPos.getY()) + ", " + String::valueOf(objPos.getZ()), true);
+			if((sPos-flippedPos).length() < sphere.getRadius()) {
 				region->sceneData.addAll(object->getTransformedMeshData(&identity));
+				info("Added to navmesh", true);
 			}
 		}
 		
