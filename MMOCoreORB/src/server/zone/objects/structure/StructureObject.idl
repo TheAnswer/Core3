@@ -394,7 +394,7 @@ class StructureObject extends TangibleObject {
 	
 	@dirty
 	public native boolean isCampStructure();
-	
+
 	@dirty
 	public boolean isRedeedable() {
 		if (isCivicStructure()) {
@@ -403,11 +403,7 @@ class StructureObject extends TangibleObject {
 			return (getRedeedCost() < surplusMaintenance);
 		}
 	}
-	
-	@local
-	@dirty
-	public native AABBTree getAABBTree();
-	
+
 	/**
 	 * Adds this object's skill mod map to the target object's skill mod map
 	 * @param targetObject The targeted object containing the SkillModMap which will be affected.
