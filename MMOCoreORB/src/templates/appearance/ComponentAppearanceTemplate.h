@@ -92,7 +92,11 @@ public:
 			iffStream->getString(meshFile);
 
 			AppearanceTemplate* templ = TemplateManager::instance()->getAppearanceTemplate("appearance/" + meshFile);
-	
+
+			if (templ == NULL) {
+				System::out << "Template not found appearance/" << meshFile;
+				continue;
+			}
 			Matrix4 mat;
 			Matrix4 inverse;
 			for (int x = 0; x < 3; x++) {

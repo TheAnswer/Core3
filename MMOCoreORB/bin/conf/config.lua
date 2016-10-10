@@ -91,20 +91,20 @@ ZonesEnabled = {
 	--"11",
 	--"character_farm",
 	--"cinco_city_test_m5",
-	--"corellia",
+	"corellia",
 	--"creature_test",
-	--"dantooine",
-	--"dathomir",
+	"dantooine",
+	"dathomir",
 	--"dungeon1",
-	--"endor",
+	"endor",
 	--"endor_asommers",
 	--"floratest",
 	--"godclient_test",
-	--"lok",
-	--"naboo",
+	"lok",
+	"naboo",
 	--"otoh_gunga",
 	--"rivertest",
-	--"rori",
+	"rori",
 	--"runtimerules",
 	--"simple",
 	--"space_09",
@@ -124,13 +124,13 @@ ZonesEnabled = {
 	--"space_tatooine_2",
 	--"space_yavin4",
 	--"taanab",
-	--"talus",
+	"talus",
 	"tatooine",
 	--"test_wearables",
 	"tutorial",
 	--"umbra",
 	--"watertabletest",
-	--"yavin4"
+	"yavin4"
 }
 
 
@@ -203,3 +203,4 @@ WebErrorLog = "../log/weberror.log"
 WebSessionTimeout = 600 -- Length that inactive web sessions expire
 
 PurgeDeletedCharacters = 10 --How often in minutes to purge deleted characters
+MaxNavMeshJobs = 6

@@ -19,7 +19,8 @@
 #include "server/zone/managers/planet/PlanetManager.h"
 #include "terrain/manager/TerrainManager.h"
 #include "templates/building/SharedBuildingObjectTemplate.h"
-
+#include "server/zone/objects/staticobject/StaticObject.h"
+#include "server/zone/objects/pathfinding/NavMeshRegion.h"
 
 void ZoneComponent::notifyInsertToZone(SceneObject* sceneObject, Zone* newZone) const {
 	info("inserting to zone");
@@ -540,6 +541,21 @@ void ZoneComponent::destroyObjectFromWorld(SceneObject* sceneObject, bool sendSe
 				_alocker.release();
 			
 				area->enqueueExitEvent(sceneObject);
+			}
+		} else if (dynamic_cast<StaticObject*>(sceneObject)) {
+
+			// hack to get around notifyEnter/Exit only working with tangible objects
+			Vector3 worldPos = sceneObject->getWorldPosition();
+			SortedVector<ActiveArea* > objects;
+			zone->getInRangeActiveAreas(worldPos.getX(), worldPos.getY(), 5, &objects, false);
+			for(auto& area : objects) {
+				if(area->isNavRegion()) {
+					NavMeshRegion *mesh = dynamic_cast<NavMeshRegion *>(area);
+
+					if(mesh->containsPoint(worldPos.getX(), worldPos.getY())) {
+						mesh->updateNavMesh(sceneObject, true);
+					}
+				}
 			}
 		}
 	}

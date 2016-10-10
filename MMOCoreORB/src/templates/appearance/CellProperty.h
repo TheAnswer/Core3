@@ -17,47 +17,47 @@ class AppearanceTemplate;
 class FloorMesh;
 
 class CellPortal : public Object {
-	bool passable;
+	bool solid;
 	int geometryIndex;
 	bool winding;
 	int targetCell;
 	String doorName;
-	bool bHasDoorTransform;
+	bool transformFlag;
 	Matrix4 doorTransform;
 public:
 	
 	void readObject(IffStream *iff);
 	void load_0004(IffStream *iff);
 	
-	bool isPassable() {
-		return passable;
+	bool isSolid() const {
+		return solid;
 	}
 	
-	int getGeometryIndex() {
+	int getGeometryIndex() const {
 		return geometryIndex;
 	}
 	
-	bool isWindingCCW() {
+	bool isWindingCCW() const {
 		return winding;
 	}
 	
-	int getTargetCellIndex() {
+	int getTargetCellIndex() const {
 		return targetCell;
 	}
 	
-	String getDoorTemplate() {
+	const String& getDoorTemplate() const {
 		return doorName;
 	}
 	
-	bool hasDoorTemplate() {
+	bool hasDoorTemplate() const {
 		return doorName.isEmpty() == false;
 	}
 	
-	bool hasDoorTransform() {
-		return bHasDoorTransform;
+	bool hasDoorTransform() const {
+		return transformFlag;
 	}
 	
-	const Matrix4& getDoorTransform() {
+	const Matrix4& getDoorTransform() const {
 		return doorTransform;
 	}
 
@@ -66,7 +66,6 @@ public:
 class CellProperty : public IffTemplate, public Logger {
 protected:
 	String name;
-	bool canSeeParentCell;
 	int numberOfPortals;
 	FloorMesh* floorMesh;
 	AppearanceTemplate* appearanceTemplate;
@@ -87,11 +86,7 @@ public:
 		return appearanceTemplate;
 	}
 
-	bool isCanSeeParentCell() const {
-		return canSeeParentCell;
-	}
-
-	FloorMesh* getFloorMesh() {
+	FloorMesh* getFloorMesh() const {
 		return floorMesh;
 	}
 
@@ -107,18 +102,10 @@ public:
 		return numberOfPortals;
 	}
 	
-	CellPortal* getPortal(int idx) const {
+	const CellPortal* getPortal(int idx) const {
 		return portals.get(idx);
 	}
 
-	
-	int getNumberOfPortals() {
-		return numberOfPortals;
-	}
-	
-	CellPortal* getPortal(int idx) {
-		return portals.get(idx);
-	}
 	void load_0004(IffStream* iffStream);
 	void load_0005(IffStream* iffStream);
 };

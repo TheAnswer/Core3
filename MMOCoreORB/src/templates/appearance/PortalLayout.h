@@ -87,6 +87,10 @@ public:
 	inline AppearanceTemplate* getAppearanceTemplate(int cellIndex) {
 		return cellProperties.get(cellIndex).getAppearanceTemplate();
 	}
+
+	const Vector<CellProperty>& getCellProperties() {
+		return cellProperties;
+	}
 	
 	inline CellProperty getCellProperty(int cellIndex) {
 		return cellProperties.get(cellIndex);
@@ -98,6 +102,10 @@ public:
 	
 	inline const MeshData* getPortalGeometry(int idx) {
 		return portalGeometry.get(idx)->getGeometry();
+	}
+
+	const AABB& getPortalBounds(int idx) {
+		return portalGeometry.get(idx)->getBoundingBox();
 	}
 
 	static uint32 loadCRC(IffStream* iffStream);
