@@ -29,4 +29,6 @@ class StaticObject extends SceneObject {
 	
 	@dirty
 	public native void sendBaselinesTo(SceneObject player);
+
+
 }
