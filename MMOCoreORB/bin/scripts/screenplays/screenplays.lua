@@ -27,6 +27,8 @@ require("sui.custom.SuiReceiverPuzzle")
 
 includeFile("helperfuncs.lua")
 
+--swgemu custom
+includeFile("swgemu/christmas.lua")
 
 -- Theme parks
 includeFile("themepark/conversations/goru_conv_handler.lua")

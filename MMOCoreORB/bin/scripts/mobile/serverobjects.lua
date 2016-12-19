@@ -1,6 +1,9 @@
 -- Conversations
 includeFile("conversations.lua")
 
+--swgemu custom
+includeFile("swgemu/serverobjects.lua")
+
 -- Creatures
 includeFile("corellia/serverobjects.lua")
 includeFile("dantooine/serverobjects.lua")
