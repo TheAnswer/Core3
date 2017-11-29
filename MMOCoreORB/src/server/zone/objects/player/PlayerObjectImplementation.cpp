@@ -1294,7 +1294,7 @@ void PlayerObjectImplementation::notifyOnline() {
 		FrsManager* frsManager = zoneServer->getFrsManager();
 
 		if (frsManager != NULL) {
-			frsManager->deductDebtExperience(playerCreature);
+			frsManager->playerLoggedIn(playerCreature);
 		}
 	}
 
@@ -1316,6 +1316,8 @@ void PlayerObjectImplementation::notifyOnline() {
 			missionManager->updatePlayerBountyOnlineStatus(id, true);
 		}
 	}
+
+	playerCreature->schedulePersonalEnemyFlagTasks();
 }
 
 void PlayerObjectImplementation::notifyOffline() {
@@ -2608,4 +2610,3 @@ void PlayerObjectImplementation::doFieldFactionChange(int newStatus) {
 bool PlayerObjectImplementation::isIgnoring(const String& name) {
 	return !name.isEmpty() && ignoreList.contains(name);
 }
-
