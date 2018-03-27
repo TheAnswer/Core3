@@ -1,4 +1,4 @@
-# SWGEmu Core3 #
+default# SWGEmu Core3 #
 
 ## What is SWGEmu? ##
 
@@ -23,7 +23,7 @@ At SWGEmu, Emulator refers to the software the SWGEmu team is building. This Emu
 ### Debian 9+ or Ubuntu 16.04+ ###
   * Install dependencies
 
-        sudo apt install build-essential libmysqlclient-dev liblua5.3-dev libdb5.3-dev libssl-dev cmake git default-jre libssl-dev
+        sudo apt install build-essential default-libmysqlclient-dev liblua5.3-dev libdb5.3-dev libssl-dev cmake git default-jre libssl-dev
   * Clone core3 repository somewhere  (~/git)
 
         git clone http://review.swgemu.com/Core3
