@@ -1,4 +1,5 @@
-# SWGEmu Core3
+# SWGpub6
+## forked from SWGEmu Core3
 
 ## What is SWGEmu?
 
