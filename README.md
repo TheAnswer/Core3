@@ -1,11 +1,9 @@
 # SWGpub6
 ### forked from SWGEmu Core3
 
-## What is SWGEmu?
+## What is SWGpub6?
 
-Star Wars Galaxies was a massively multi-player online role playing game introduced by Sony Online Entertainment in the year 2003 and shut down in 2011.
-It is this game the SWGEmu project focuses to recreate at a specific milestone referred to as Pre-CU, or Pre-Combat Upgrade. The Combat Upgrade was a set of game changes which radically changed the game-play, to the dislike of thousands of players. These changes led to the founding of this project, in an attempt to "recreate" the game as it was during the Pre-CU era.
-At SWGEmu, Emulator refers to the software the SWGEmu team is building. This Emulator is meant to imitate Sony Online Entertainment's server-side software, which hosted the galaxies of Star Wars Galaxies during the Pre-CU era.
+Ditto SWGEmu but pub 6
 
 ## How to Build
 
@@ -36,7 +34,7 @@ At SWGEmu, Emulator refers to the software the SWGEmu team is building. This Emu
 
         mkdir -p ~/git
         cd ~/git
-        git clone http://review.swgemu.com/Core3
+        git clone https://github.com/TheArchitect108/swgpub6/
   * Build Core3 with 8 threads
 
         cd MMOCoreORB
@@ -52,7 +50,7 @@ At SWGEmu, Emulator refers to the software the SWGEmu team is building. This Emu
 
 ## License
 
-    Copyright (C) 2019 SWGEmu
+    Copyright (C) 2020 SWGEmu
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU Affero General Public License as published by the Free Software Foundation,
@@ -64,5 +62,3 @@ At SWGEmu, Emulator refers to the software the SWGEmu team is building. This Emu
 
     You should have received a copy of the GNU Affero General Public License along with this program.
     If not, see <http://www.gnu.org/licenses/>.
-
-For more information, see https://review.swgemu.com.
