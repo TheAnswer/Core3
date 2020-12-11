@@ -1,4 +1,4 @@
-# SWGpub6
+# SWGepub6
 ### forked from SWGEmu Core3
 
 ## What is SWGpub6?
@@ -34,7 +34,7 @@ Ditto SWGEmu but pub 6
 
         mkdir -p ~/git
         cd ~/git
-        git clone https://github.com/TheArchitect108/swgpub6/
+        git clone https://github.com/TheArchitect108/swgepub6/
   * Build Core3 with 8 threads
 
         cd MMOCoreORB
@@ -45,7 +45,7 @@ Ditto SWGEmu but pub 6
 
 ## How to Run
 
-    cd ~/git/Core3/MMOCoreORB/bin
+    cd ~/git/swgepub6/MMOCoreORB/bin
     ./core3
 
 ## License
