@@ -1,0 +1,53 @@
+version: '3'
+
+volumes:
+  mysql:
+  database:
+  navmeshes:
+  log:
+
+services:
+  database:
+    image: mysql:5.7.28
+    hostname: swgemu_database
+    container_name: swgemu_database
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=swgemuroot
+      - MYSQL_DATABASE=swgemu
+      - MYSQL_USER=swgemu
+      - MYSQL_PASSWORD=swgemu-sql
+    volumes:
+      - mysql:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+    restart: always
+
+  swgemu:
+    depends_on:
+      - database
+    build: .
+    image: swgemu:dev
+    hostname: swgemu_server
+    container_name: swgemu_server
+    ports:
+      - "44419:44419"
+      - "44419:44419/udp"
+      - "44453:44453"
+      - "44453:44453/udp"
+      - "44462:44462"
+      - "44462:44462/udp"
+      - "44463:44463"
+      - "44463:44463/udp"
+      - "44455:44455"
+      - "44455:44455/udp"
+      - "44460:44460"
+    volumes:
+      - ./server/tre:/home/swgemu/Desktop/SWGEmu
+      - ./server/conf:/app/MMOCoreORB/bin/conf
+      - ./server/custom_scripts:/app/MMOCoreORB/bin/scripts/custom_scripts
+      - log:/app/MMOCoreORB/bin/log
+      - navmeshes:/app/MMOCoreORB/bin/navmeshes
+      - database:/app/MMOCoreORB/bin/databases
+    stop_grace_period: 1m
+    restart: always

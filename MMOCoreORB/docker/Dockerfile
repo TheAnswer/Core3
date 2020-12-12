@@ -14,7 +14,7 @@ RUN apt-get install -y gcc g++ make autoconf automake autotools-dev git libc6-de
 #RUN echo 'CREATE DATABASE swgemu;' | mysql -uroot -proot
 #RUN echo 'GRANT ALL ON *.* TO `swgemu`@`localhost` IDENTIFIED BY "123456";' | mysql -uroot -proot
 
-RUN mkdir -p /swgemu/MMOEngine && mkdir -p /swgemu/MMOCoreORB
+RUN mkdir -p /swgpub6/MMOEngine && mkdir -p /swgpub6/MMOCoreORB
 #RUN ln -s /swgemu/MMOEngine/bin/idlc /usr/local/bin/idlc
 
 RUN apt-get install -y wget && wget http://www.lua.org/ftp/lua-5.3.3.tar.gz && tar -xvf lua-5.3.3.tar.gz && cd lua-5.3.3 && make linux install && cd .. && rm -R lua-5.3.3 && rm lua-5.3.3.tar.gz && ldconfig
