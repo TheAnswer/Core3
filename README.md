@@ -18,6 +18,10 @@ Install Docker -- https://docs.docker.com/engine/install/
 <br/>
 `docker-compose up -d`
 
+### TREs
+
+Place the required TREs in `server/tre`. A list can be found under `server/conf/config.lua`.
+
 ### Database
 
 You can connect to the MySQL database using localhost:3306 using any MySQL compatible tool. The root password can be found in the docker-compose.yml
