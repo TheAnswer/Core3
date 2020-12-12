@@ -1,0 +1,3 @@
+Welcome to your SWGEmu Dev Environment!
+
+Please dont forget to hard restart your clients if the server crashed/restarted.
