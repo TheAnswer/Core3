@@ -5,7 +5,39 @@
 
 Ditto SWGEmu but pub 6
 
-## How to Build
+## Setup guide
+Install Docker -- https://docs.docker.com/engine/install/
+
+### Git and Docker
+
+`git clone https://github.com/TheArchitect108/swgepub6.git`
+`git submodule update --init --recursive`
+`docker-compose build` * may take 15-20 mins
+`docker-compose up -d`
+
+### Database
+
+You can connect to the MySQL database using localhost:3306 using any MySQL compatible tool. The root password can be found in the docker-compose.yml
+
+Restore swgemu.sql and run admin_account.sql if the server does not start automatically.
+
+### Server Defaults
+
+Scripts included in the server directory will be copyed over and loaded.
+Default login: admin
+Default password: admin
+
+
+### Troubleshooting Docker
+If the server does not start on first run, it's likely the database. Make sure the sql files were ran properly.
+
+You can use the following commands to troubleshoot more indepth --
+
+`docker container ls`
+`docker attach container_id`
+`docker container kill container_id`
+
+## Old Way
 
 ### Dependencies
 
@@ -43,7 +75,7 @@ Ditto SWGEmu but pub 6
 
         mysql -h<MYSQLHOST> -u<MYSQLUSER> -p<MYSQLPASSWORD> < sql/swgemu.sql
 
-## How to Run
+### How to Run
 
     cd ~/git/swgepub6/MMOCoreORB/bin
     ./core3
