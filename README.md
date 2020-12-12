@@ -80,6 +80,13 @@ You can use the following commands to troubleshoot more indepth --
     cd ~/git/swgepub6/MMOCoreORB/bin
     ./core3
 
+## Gratitude
+
+Big thanks to all the developers and contributors to SWGEmu, Core3, and Engine3.
+
+@thmhoag for his original work to dockerize things -- https://github.com/thmhoag/swgemu-docker
+
+
 ## License
 
     Copyright (C) 2020 SWGEmu
