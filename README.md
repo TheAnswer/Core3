@@ -11,8 +11,11 @@ Install Docker -- https://docs.docker.com/engine/install/
 ### Git and Docker
 
 `git clone https://github.com/TheArchitect108/swgepub6.git`
+<br/>
 `git submodule update --init --recursive`
+<br/>
 `docker-compose build` * may take 15-20 mins
+<br/>
 `docker-compose up -d`
 
 ### Database
@@ -34,7 +37,9 @@ If the server does not start on first run, it's likely the database. Make sure t
 You can use the following commands to troubleshoot more indepth --
 
 `docker container ls`
+<br/>
 `docker attach container_id`
+<br/>
 `docker container kill container_id`
 
 ## Old Way
