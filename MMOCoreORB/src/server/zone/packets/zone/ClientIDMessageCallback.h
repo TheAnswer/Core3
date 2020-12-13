@@ -33,7 +33,7 @@ public:
 	}
 
 	void parse(Message* message) {
-		gameBits = message->parseInt();
+		//gameBits = message->parseInt();
 		dataLen = message->parseInt() - 4; //accountid embedded
 
 		StringBuffer buf;
@@ -45,7 +45,7 @@ public:
 		sessionID = buf.toString();
 
 		accountID = message->parseInt();
-		version = message->parseAscii();
+		//version = message->parseAscii();
 	}
 
 	void run() {
