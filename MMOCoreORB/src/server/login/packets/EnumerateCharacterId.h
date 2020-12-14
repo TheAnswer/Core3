@@ -34,7 +34,7 @@ public:
 			insertLong(entry->getObjectID()); //Player ID
 
 			insertInt(entry->getGalaxyID()); //Server ID That Character Is On
-			insertInt(0x00000001); // server status?
+			insertInt(0x2); // server status?
 		}
 	}
 
