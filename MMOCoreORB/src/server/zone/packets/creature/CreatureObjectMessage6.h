@@ -14,7 +14,7 @@ public:
 		insertShort((uint16)creo->getLevel());
 		insertAscii(creo->getPerformanceAnimation());
 		insertAscii(creo->getMoodString());
-		insertLong(creo->getWeaponID());
+		//insertLong(creo->getWeaponID());
 		insertLong(creo->getGroupID());
 		insertLong(creo->getGroupInviterID());	
 		insertLong(creo->getGroupInviteCounter());
@@ -25,7 +25,10 @@ public:
 		insertInt(creo->getInstrumentID());
 	
 		const DeltaVector<int>* baseHam = creo->getBaseHAM();
+		const DeltaVector<int>* maxHam = creo->getMaxHAM();
+
 		baseHam->insertToMessage(this);
+		maxHam->insertToMessage(this);
 
 		insertEquipmentList(creo);
 
