@@ -6,7 +6,14 @@
 Ditto SWGEmu but pub 6
 
 ## Setup guide
-Install Docker -- https://docs.docker.com/engine/install/
+Install Docker -- 
+https://docs.docker.com/engine/install/
+
+Enable BuildKit (faster):
+https://docs.docker.com/develop/develop-images/build_enhancements/
+
+### Windows
+https://nickjanetakis.com/blog/setting-up-docker-for-windows-and-wsl-to-work-flawlessly#ensure-volume-mounts-work
 
 ### Git and Docker
 
