@@ -19,12 +19,15 @@ public:
 		insertLong(creo->getCreatureLinkID()); // creature link id/ mount
 
 		insertFloat(creo->getHeight());
-		insertInt((int)creo->getShockWounds()); // BF
+		
+		insertInt((int)creo->getShockWounds()); // BF Confirmed
 
 		insertLong(creo->getStateBitmask());
 
-		const DeltaVector<int>* wounds = creo->getWounds();
+// DOES NOTHING?
+		const DeltaVector<int>* wounds = creo->getBaseHAM();
 		wounds->insertToMessage(this);
+
 
 		setSize();
 	}

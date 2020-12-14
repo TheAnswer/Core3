@@ -63,7 +63,7 @@ Core3 = {
 	LoginPort = 44453,
 	LoginProcessingThreads = 1,
 	LoginAllowedConnections = 3000,
-	LoginRequiredVersion = "20050408-18:00",
+	LoginRequiredVersion = "20031217-16:02",
 
 	MantisHost = "swgemu_database",
 	MantisPort = 3306,
