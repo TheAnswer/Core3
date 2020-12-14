@@ -1,6 +1,4 @@
-/*
-				Copyright <SWGEmu>
-		See file COPYING for copying conditions.*/
+/* Copyright <SWGEmu> See file COPYING for copying conditions.*/
 
 #ifndef CREATUREOBJECTMESSAGE6_H_
 #define CREATUREOBJECTMESSAGE6_H_
@@ -18,26 +16,22 @@ public:
 		insertAscii(creo->getMoodString());
 		insertLong(creo->getWeaponID());
 		insertLong(creo->getGroupID());
-		insertLong(creo->getGroupInviterID());
+		insertLong(creo->getGroupInviterID());	
 		insertLong(creo->getGroupInviteCounter());
 		insertInt(creo->getGuildID());
 		insertLong(creo->getTargetID());
 		insertByte(creo->getMoodID());
-		insertInt(creo->getPerformanceCounter()); //might be switched
-		insertInt(creo->getInstrumentID()); //might be switched
-
-		const DeltaVector<int>* ham = creo->getHAM();
-		ham->insertToMessage(this);
-
-		const DeltaVector<int>* maxHam = creo->getMaxHAM();
-		maxHam->insertToMessage(this);
+		insertInt(creo->getPerformanceCounter());
+		insertInt(creo->getInstrumentID());
+	
+		const DeltaVector<int>* baseHam = creo->getBaseHAM();
+		baseHam->insertToMessage(this);
 
 		insertEquipmentList(creo);
 
 		insertAscii(creo->getAlternateAppearance());
 
 		insertByte(creo->getFrozen());
-
 		setSize();
 	}
 

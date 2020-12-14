@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y build-essential \
     libmysqlclient-dev \
     liblua5.3-dev \
     libdb5.3-dev \
-    libssl-dev
+    libssl-dev \
+    libjemalloc-dev
 
 COPY server/scripts /app/scripts
 RUN ln -s /app/scripts/swgemu.sh /usr/bin/swgemu
@@ -18,7 +19,9 @@ RUN apt-get install -y cmake \
     ninja-build \
     git \
     default-jre \
-    curl
+    curl \
+    python-qt4 \
+    ccache 
 
 # builder image to build Core3
 # this is separate to facilicate using
@@ -28,7 +31,9 @@ FROM build-image as builder
 RUN curl -L https://github.com/krallin/tini/releases/download/v0.18.0/tini -o /usr/bin/tini
 
 WORKDIR /app
-COPY . ./
+COPY .git/ ./.git/
+COPY ./server server
+COPY ./MMOCoreORB MMOCoreORB
 
 # This is a hack to make the /app folder the root of it's own
 # git repo. Without this section git will treat is as a submodule
