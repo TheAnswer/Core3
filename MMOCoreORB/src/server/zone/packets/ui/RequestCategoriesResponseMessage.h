@@ -34,7 +34,7 @@ public:
 };
 
 class RequestCategoriesMessageCallback : public MessageCallback {
-	String language;
+	//String language;
 
 public:
 	RequestCategoriesMessageCallback(ZoneClientSession* client, ZoneProcessServer* server) :
@@ -43,7 +43,8 @@ public:
 	}
 
 	void parse(Message* message) {
-		message->parseAscii(language);
+		// Removed due to pub 6 not using it.
+		//message->parseAscii(language);
 	}
 
 	void run() {
