@@ -14,7 +14,7 @@ public:
 		insertShort((uint16)creo->getLevel());
 		insertAscii(creo->getPerformanceAnimation());
 		insertAscii(creo->getMoodString());
-		insertLong(creo->getWeaponID());
+		//insertLong(creo->getWeaponID());
 		insertLong(creo->getGroupID());
 		insertLong(creo->getGroupInviterID());	
 		insertLong(creo->getGroupInviteCounter());
