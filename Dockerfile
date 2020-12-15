@@ -32,8 +32,11 @@ RUN curl -L https://github.com/krallin/tini/releases/download/v0.18.0/tini -o /u
 
 WORKDIR /app
 COPY .git/ ./.git/
-COPY ./server server
 COPY ./MMOCoreORB MMOCoreORB
+COPY ./server/custom_scripts server/custom_scripts/
+COPY ./server/scripts server/scripts/
+COPY ./server/conf server/conf/
+
 
 # This is a hack to make the /app folder the root of it's own
 # git repo. Without this section git will treat is as a submodule
@@ -54,6 +57,9 @@ RUN chmod a+x /usr/bin/tini
 
 WORKDIR /app/MMOCoreORB/bin
 COPY --from=builder /app/MMOCoreORB/bin .
+
+WORKDIR /app/MMOCoreORB/build
+COPY --from=builder /app/MMOCoreORB/build .
 
 # tini is needed as core3 does not explicitly handle SIGTERM signals
 ENTRYPOINT ["tini", "--"]

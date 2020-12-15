@@ -25,7 +25,10 @@ public:
 		insertInt(creo->getInstrumentID());
 	
 		const DeltaVector<int>* baseHam = creo->getBaseHAM();
+		const DeltaVector<int>* maxHam = creo->getMaxHAM();
+
 		baseHam->insertToMessage(this);
+		maxHam->insertToMessage(this);
 
 		insertEquipmentList(creo);
 
