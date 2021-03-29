@@ -170,6 +170,8 @@ void CreatureObjectImplementation::initializeMembers() {
 	closeobjects = new CloseObjectsVector();
 	closeobjects->setNoDuplicateInsertPlan();
 
+	primaryTarget = false;
+
 	healthWoundHeal = 0;
 	actionWoundHeal = 0;
 	mindWoundHeal = 0;

@@ -503,7 +503,7 @@ int PetManagerImplementation::notifyDestruction(TangibleObject* destructor, AiAg
 		}
 	}
 
-	destructor->removeDefender(destructedObject);
+	destructor->removeDefender(destructedObject, false);
 
 	ManagedReference<PetControlDevice*> petControlDevice = destructedObject->getControlDevice().get().castTo<PetControlDevice*>();
 

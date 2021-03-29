@@ -200,6 +200,8 @@ class CreatureObject extends TangibleObject {
 
 	protected transient string alternateAppearance;
 
+	protected boolean primaryTarget;
+
 	public static final int HUMAN = 0;
 	public static final int RODIAN = 1;
 	public static final int TRANDOSHAN = 2;
@@ -227,6 +229,8 @@ class CreatureObject extends TangibleObject {
 	 * @param templateData templateData points to the SharedCreatureObjectTemplate LuaObject that is used to initialize CreatureObject members
 	 */
 	public CreatureObject() {
+		primaryTarget = false;
+
 		Logger.setLoggingName("CreatureObject");
 
 		initializeMembers();
@@ -1356,6 +1360,10 @@ class CreatureObject extends TangibleObject {
 		lastSuccessfulCombatAction.updateToCurrentTime();
 	}
 
+	public boolean getLastSuccessfulCombatAction() {
+		return lastSuccessfulCombatAction;
+	}
+
 	public void updatePostureChangeDelay(unsigned long delay) {
 		cooldownTimerMap.updateToCurrentAndAddMili("postureChangeDelay", delay);
 	}
@@ -2088,6 +2096,15 @@ class CreatureObject extends TangibleObject {
 	@read
 	public boolean isRunning() {
 		return currentSpeed >= runSpeed;
+	}
+
+	public void setPrimaryTarget(boolean val) {
+		primaryTarget = val;
+	}
+
+	@read
+	public boolean isPrimaryTarget() {
+		return primaryTarget;
 	}
 
 	@dirty

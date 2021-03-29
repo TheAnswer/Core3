@@ -76,6 +76,9 @@ class TangibleObject extends SceneObject {
 	@dereferenced
 	protected DeltaVector<SceneObject> defenderList;
 
+	@dereferenced
+	protected DeltaVector<SceneObject> attackerList;
+
 	protected boolean sliceable;
 	protected boolean sliced;
 
@@ -277,7 +280,7 @@ class TangibleObject extends SceneObject {
 	 * @param defender SceneObject to remove from the defender vector
 	 */
 	@preLocked
-	public native abstract void removeDefender(SceneObject defender);
+	public native abstract void removeDefender(SceneObject defender, boolean mainDefender);
 
 	/**
 	 * Removes all the defenders from the defender vector
@@ -287,6 +290,16 @@ class TangibleObject extends SceneObject {
 	@preLocked
 	public native abstract void removeDefenders();
 
+	@preLocked
+	public native abstract void addAttacker(SceneObject attacker);
+
+	@preLocked
+	public native abstract void removeAttacker(SceneObject attacker);
+
+	@preLocked
+	public native abstract void removeAttackers() {
+		attackerList.removeAll();
+	}
 
 	/**
 	 * Sets the combat state, needs to be overriden
@@ -314,7 +327,6 @@ class TangibleObject extends SceneObject {
 
 	@preLocked
 	public abstract native void setCountdownTimer(unsigned int newCount, boolean notifyClient = true);
-
 
 	/**
 	 * Fills the attribute list message options that are sent to player creature
@@ -582,6 +594,12 @@ class TangibleObject extends SceneObject {
 	@read
 	public final DeltaVector<SceneObject> getDefenderList() {
 		return defenderList;
+	}
+
+	@local
+	@read
+	public final DeltaVector<SceneObject> getAttackerList() {
+		return attackerList;
 	}
 
 	@local

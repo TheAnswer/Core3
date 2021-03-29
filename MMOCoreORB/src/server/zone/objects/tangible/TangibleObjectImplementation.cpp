@@ -477,7 +477,7 @@ void TangibleObjectImplementation::addDefender(SceneObject* defender) {
 
 	broadcastMessage(dtano6, true);
 
-	setCombatState();
+	//setCombatState();
 
 	notifyObservers(ObserverEventType::DEFENDERADDED, defender);
 }
@@ -505,7 +505,7 @@ void TangibleObjectImplementation::removeDefenders() {
 	debug("removed all defenders");
 }
 
-void TangibleObjectImplementation::removeDefender(SceneObject* defender) {
+void TangibleObjectImplementation::removeDefender(SceneObject* defender, bool mainDefender) {
 	debug("trying to remove defender");
 
 	for (int i = 0; i < defenderList.size(); ++i) {
@@ -532,11 +532,45 @@ void TangibleObjectImplementation::removeDefender(SceneObject* defender) {
 		}
 	}
 
-	if (defenderList.size() == 0)
+	if (defenderList.size() == 0 && attackerList.size() == 0) {
 		clearCombatState(false);
+	}
 
 	debug("finished removing defender");
 }
+
+void TangibleObjectImplementation::addAttacker(SceneObject* attacker) {
+	if (attacker == asTangibleObject()) {
+		return;
+	}
+
+	fatal(attacker, "attackerer is null in add attacker");
+
+	for (int i = 0; i < attackerList.size(); ++i) {
+		if (attacker == attackerList.get(i)) {
+			return;
+		}
+	}
+
+	attackerList.add(attacker);
+}
+
+void TangibleObjectImplementation::removeAttacker(SceneObject* attacker) {
+	for (int i = 0; i < attackerList.size(); ++i) {
+		if (attackerList.get(i) == attacker) {
+			attackerList.remove(i);
+			break;
+		}
+	}
+}
+
+/*void TangibleObjectImplementation::removeAttackers() {
+	if (attackersList.size() == 0) {
+		return;
+	}
+
+	attackersList.removeAll();
+}*/
 
 void TangibleObjectImplementation::fillAttributeList(AttributeListMessage* alm, CreatureObject* object) {
 	SceneObjectImplementation::fillAttributeList(alm, object);

@@ -30,7 +30,7 @@ public:
 
 			Locker clocker(defender, tangibleObject);
 
-			(cast<TangibleObject*>(defender))->removeDefender(tangibleObject);
+			(cast<TangibleObject*>(defender))->removeDefender(tangibleObject, false);
 		}
 
 		tangibleObject->removeDefenders();

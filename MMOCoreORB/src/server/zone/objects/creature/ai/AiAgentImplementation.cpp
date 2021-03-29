@@ -1293,7 +1293,7 @@ void AiAgentImplementation::addDefender(SceneObject* defender) {
 }
 
 void AiAgentImplementation::removeDefender(SceneObject* defender) {
-	CreatureObjectImplementation::removeDefender(defender);
+	CreatureObjectImplementation::removeDefender(defender, false);
 
 	if (defender == nullptr)
 		return;

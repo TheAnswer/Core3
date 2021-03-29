@@ -96,6 +96,8 @@ class PlayerObject extends IntangibleObject {
 	protected string mutedReason;
 	protected int tosVersionAccepted;
 
+	protected boolean primaryTarget;
+
 	@dereferenced
 	protected SortedVector<unsigned long> ownedStructures;
 
@@ -1238,6 +1240,10 @@ class PlayerObject extends IntangibleObject {
 
 	public void setForcedTransform(boolean val) {
 		forcedTransform = val;
+	}
+
+	public void setPrimaryTarget(boolean val) {
+		primaryTarget = val;
 	}
 
 	@read

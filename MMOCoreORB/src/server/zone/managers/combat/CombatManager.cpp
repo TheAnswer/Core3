@@ -62,7 +62,6 @@ bool CombatManager::startCombat(CreatureObject* attacker, TangibleObject* defend
 			attacker->clearState(CreatureState::PEACE);
 			return true;
 		}
-
 		return false;
 	}
 
@@ -84,8 +83,11 @@ bool CombatManager::startCombat(CreatureObject* attacker, TangibleObject* defend
 			VisibilityManager::instance()->increaseVisibility(creo, 25);
 	}
 
-	attacker->setDefender(defender);
-	defender->addDefender(attacker);
+	attacker->setCombatState();
+
+	if (defender->isCreatureObject()) {
+		defender->setCombatState();
+	}
 
 	return true;
 }
@@ -93,33 +95,49 @@ bool CombatManager::startCombat(CreatureObject* attacker, TangibleObject* defend
 bool CombatManager::attemptPeace(CreatureObject* attacker) const {
 	const DeltaVector<ManagedReference<SceneObject*> >* defenderList = attacker->getDefenderList();
 
-	for (int i = defenderList->size() - 1; i >= 0; --i) {
+	int defenderListSize = defenderList->size();
+	bool mainDefender = false;
+
+	for (int i = defenderListSize - 1; i >= 0; --i) {
 		try {
 			ManagedReference<SceneObject*> object = defenderList->get(i);
 
 			TangibleObject* defender = cast<TangibleObject*>( object.get());
 
-			if (defender == nullptr)
+			if (defender == nullptr) {
+				attacker->sendSystemMessage(" defender is null in attemptPeace ");
 				continue;
+			}
 
 			try {
 				Locker clocker(defender, attacker);
 
-				if (defender->hasDefender(attacker)) {
+				if (attacker->hasDefender(defender)) {
+
+					attacker->sendSystemMessage(" attacker has defender in attemptPeace ");
 
 					if (defender->isCreatureObject()) {
 						CreatureObject* creature = defender->asCreatureObject();
 
-						if (creature->getMainDefender() != attacker || creature->hasState(CreatureState::PEACE) || creature->isDead() || attacker->isDead() || !creature->isInRange(attacker, 128.f)) {
-							attacker->removeDefender(defender);
-							defender->removeDefender(attacker);
+
+						if (creature->getMainDefender() == attacker) {
+							attacker->sendSystemMessage(" I am the attackers main defender ");
+							mainDefender = true;
 						}
+
+						attacker->removeDefender(defender, mainDefender);
+						defender->removeAttacker(attacker);
+
+						if (!creature->isInRange(attacker, 128.f)) {
+							defender->removeDefender(attacker, false);
+						}
+
 					} else {
-						attacker->removeDefender(defender);
-						defender->removeDefender(attacker);
+						attacker->sendSystemMessage(" attacker is not creature object, defenders remove comat state allowed to remove ");
+
+						attacker->removeDefender(defender, false);
+						defender->removeDefender(attacker, false);
 					}
-				} else {
-					attacker->removeDefender(defender);
 				}
 
 				clocker.release();
@@ -129,24 +147,27 @@ bool CombatManager::attemptPeace(CreatureObject* attacker) const {
 				e.printStackTrace();
 			}
 		} catch (ArrayIndexOutOfBoundsException& exc) {
-
 		}
 	}
 
-	if (defenderList->size() != 0) {
-		debug("defenderList not empty, trying to set Peace State");
+	const DeltaVector<ManagedReference<SceneObject*> >* attackerList = attacker->getAttackerList();
+	int attackerListSize = attackerList->size();
+	bool inRangeAttacker = false;
 
-		attacker->setState(CreatureState::PEACE);
+	for (int i = attackerListSize - 1; i >= 0; --i) {
+		Reference<SceneObject*> attackerListObject = attackerList->get(i);
 
-		return false;
-	} else {
-		attacker->clearCombatState(false);
-
-		// clearCombatState() (rightfully) does not automatically set peace, so set it
-		attacker->setState(CreatureState::PEACE);
-
-		return true;
+		inRangeAttacker = attacker->isInRange(attackerListObject, 128.f);
 	}
+
+	attacker->setState(CreatureState::PEACE);
+
+	if ((defenderListSize == 0 && attackerListSize == 0) || !inRangeAttacker) {
+		attacker->clearCombatState(false);
+		attacker->removeAttackers();
+	}
+
+	return true;
 }
 
 void CombatManager::forcePeace(CreatureObject* attacker) const {
@@ -165,10 +186,10 @@ void CombatManager::forcePeace(CreatureObject* attacker) const {
 		Locker clocker(defender, attacker);
 
 		if (defender->hasDefender(attacker)) {
-			attacker->removeDefender(defender);
-			defender->removeDefender(attacker);
+			attacker->removeDefender(defender, false);
+			defender->removeDefender(attacker, false);
 		} else {
-			attacker->removeDefender(defender);
+			attacker->removeDefender(defender, false);
 		}
 
 		--i;
@@ -289,9 +310,6 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 	if (!tano->isAttackableBy(attacker))
 		return 0;
 
-	attacker->addDefender(tano);
-	tano->addDefender(attacker);
-
 	if (tano->isCreatureObject()) {
 		CreatureObject* defender = tano->asCreatureObject();
 
@@ -335,8 +353,12 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 }
 
 int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* weapon, CreatureObject* defender, const CreatureAttackData& data, bool* shouldGcwCrackdownTef, bool* shouldGcwTef, bool* shouldBhTef) const {
-	if (defender->isEntertaining())
+	if (defender->isEntertaining()) {
 		defender->stopEntertaining();
+	}
+
+	attacker->setDefender(defender);
+	defender->addAttacker(attacker);
 
 	int hitVal = HIT;
 	uint8 hitLocation = 0;
@@ -380,7 +402,8 @@ int CombatManager::doTargetCombatAction(CreatureObject* attacker, WeaponObject* 
 		damageMultiplier = 0.0f;
 		break;}
 	case RICOCHET:
-		doLightsaberBlock(attacker, weapon, defender, damage);
+		//doLightsaberBlock(attacker, weapon, defender, damage);
+		broadcastCombatAction(attacker, defender, weapon, data, 0, hitVal, 0);
 		checkForTefs(attacker, defender, shouldGcwCrackdownTef, shouldGcwTef, shouldBhTef);
 		damageMultiplier = 0.0f;
 		return 0;
@@ -440,9 +463,6 @@ int CombatManager::doTargetCombatAction(TangibleObject* attacker, WeaponObject* 
 
 	if (defenderObject->isEntertaining())
 		defenderObject->stopEntertaining();
-
-	attacker->addDefender(defenderObject);
-	defenderObject->addDefender(attacker);
 
 	float damageMultiplier = data.getDamageMultiplier();
 
@@ -2393,11 +2413,11 @@ void CombatManager::requestEndDuel(CreatureObject* player, CreatureObject* targe
 	player->debug() << "ending duel with " << targetPlayer->getObjectID();
 
 	ghost->removeFromDuelList(targetPlayer);
-	player->removeDefender(targetPlayer);
+	player->removeDefender(targetPlayer, false);
 
 	if (targetGhost->requestedDuelTo(player)) {
 		targetGhost->removeFromDuelList(player);
-		targetPlayer->removeDefender(player);
+		targetPlayer->removeDefender(player, false);
 
 		player->sendPvpStatusTo(targetPlayer);
 
@@ -2405,7 +2425,7 @@ void CombatManager::requestEndDuel(CreatureObject* player, CreatureObject* targe
 			ManagedReference<AiAgent*> pet = ghost->getActivePet(i);
 
 			if (pet != nullptr) {
-				targetPlayer->removeDefender(pet);
+				targetPlayer->removeDefender(pet, false);
 				pet->sendPvpStatusTo(targetPlayer);
 
 				ManagedReference<CreatureObject*> target = targetPlayer;
@@ -2428,7 +2448,7 @@ void CombatManager::requestEndDuel(CreatureObject* player, CreatureObject* targe
 			ManagedReference<AiAgent*> pet = targetGhost->getActivePet(i);
 
 			if (pet != nullptr) {
-				player->removeDefender(pet);
+				player->removeDefender(pet, false);
 				pet->sendPvpStatusTo(player);
 
 				ManagedReference<CreatureObject*> play = player;
@@ -2467,11 +2487,11 @@ void CombatManager::freeDuelList(CreatureObject* player, bool spam) const {
 				Locker clocker(targetPlayer, player);
 
 				ghost->removeFromDuelList(targetPlayer);
-				player->removeDefender(targetPlayer);
+				player->removeDefender(targetPlayer, false);
 
 				if (targetGhost->requestedDuelTo(player)) {
 					targetGhost->removeFromDuelList(player);
-					targetPlayer->removeDefender(player);
+					targetPlayer->removeDefender(player, false);
 
 					player->sendPvpStatusTo(targetPlayer);
 
@@ -2479,7 +2499,7 @@ void CombatManager::freeDuelList(CreatureObject* player, bool spam) const {
 						ManagedReference<AiAgent*> pet = ghost->getActivePet(i);
 
 						if (pet != nullptr) {
-							targetPlayer->removeDefender(pet);
+							targetPlayer->removeDefender(pet, false);
 							pet->sendPvpStatusTo(targetPlayer);
 
 							Core::getTaskManager()->executeTask([=] () {
@@ -2502,7 +2522,7 @@ void CombatManager::freeDuelList(CreatureObject* player, bool spam) const {
 						ManagedReference<AiAgent*> pet = targetGhost->getActivePet(i);
 
 						if (pet != nullptr) {
-							player->removeDefender(pet);
+							player->removeDefender(pet, false);
 							pet->sendPvpStatusTo(player);
 
 							ManagedReference<CreatureObject*> play = player;
