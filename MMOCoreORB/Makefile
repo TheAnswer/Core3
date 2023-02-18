@@ -53,7 +53,7 @@ UNITTEST_DIRECTIVES =
 CMAKE_ARGS =
 
 BUILD_PATH = build/unix
-DEFAULT_BUILD_TYPE = RelWithDebInfo
+DEFAULT_BUILD_TYPE = Release
 
 all: build-cmake-with-idl
 
